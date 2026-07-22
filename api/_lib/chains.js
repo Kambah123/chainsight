@@ -151,72 +151,88 @@ const SPL_STABLE = {
 };
 async function sol(address) {
   const px = (await prices()).sol;
-  const rpc = process.env.HELIUS_KEY ? `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_KEY}` : 'https://api.mainnet-beta.solana.com';
-  const source = process.env.HELIUS_KEY ? 'Helius' : 'Solana RPC';
+  const key = process.env.HELIUS_KEY;
+  const rpc = key ? `https://mainnet.helius-rpc.com/?api-key=${key}` : 'https://api.mainnet-beta.solana.com';
+  const source = key ? 'Helius' : 'Solana RPC';
   const call = (method, params) => fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }).then(r => r.json()).then(r => { if (r.error) throw new Error(r.error.message); return r.result; });
   const [balR, sigs] = await Promise.all([call('getBalance', [address]), call('getSignaturesForAddress', [address, { limit: 200 }]).catch(() => [])]);
   const bal = (balR?.value || 0) / 1e9;
   const times = (sigs || []).filter(s => s.blockTime).map(s => s.blockTime * 1000);
 
-  // Parse the most recent successful transactions for real flows.
   const items = [];
   let parsed = false;
   try {
-    const N = Number(process.env.SOL_PARSE_LIMIT) || 12; // smaller batch = better odds vs public-RPC rate limits
-    const take = (sigs || []).filter(s => !s.err).slice(0, N).map(s => s.signature);
-    if (take.length) {
-      const batch = take.map((sig, i) => ({ jsonrpc: '2.0', id: i, method: 'getTransaction', params: [sig, { maxSupportedTransactionVersion: 0, encoding: 'jsonParsed' }] }));
-      const fetchBatch = () => fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(batch), signal: AbortSignal.timeout(18000) }).then(r => r.json()).catch(() => null);
-      let resp = await fetchBatch();
-      if (!Array.isArray(resp)) { await new Promise(r => setTimeout(r, 900)); resp = await fetchBatch(); } // one retry on throttle
-      const txs = Array.isArray(resp) ? resp.map(r => r && r.result).filter(Boolean) : [];
-      for (const tx of txs) {
-        const ts = tx.blockTime ? tx.blockTime * 1000 : null;
-        const keys = (tx.transaction?.message?.accountKeys || []).map(k => (typeof k === 'string' ? k : k.pubkey));
-        const pre = tx.meta?.preBalances || [], post = tx.meta?.postBalances || [];
-        const si = keys.indexOf(address);
-        // native SOL flow
-        if (si >= 0 && pre.length && post.length) {
-          const subjDelta = (post[si] - pre[si]) / 1e9;
-          if (Math.abs(subjDelta) >= 0.001) { // ignore fee/rent dust
-            const out = subjDelta < 0;
-            let other = null, bestVal = 0;
-            for (let i = 0; i < Math.min(keys.length, pre.length, post.length); i++) {
-              if (i === si) continue;
-              const d = (post[i] - pre[i]) / 1e9;
-              if (out && d > bestVal) { bestVal = d; other = keys[i]; }
-              if (!out && d < bestVal) { bestVal = d; other = keys[i]; }
+    if (key) {
+      // Helius Enhanced Transactions API — one reliable call, pre-parsed native + token transfers
+      const en = await fetch(`https://api.helius.xyz/v0/addresses/${address}/transactions?api-key=${key}&limit=100`, { signal: AbortSignal.timeout(22000) }).then(r => r.json());
+      if (Array.isArray(en)) {
+        for (const tx of en) {
+          const ts = tx.timestamp ? tx.timestamp * 1000 : null;
+          for (const nt of (tx.nativeTransfers || [])) {
+            if (nt.fromUserAccount === address || nt.toUserAccount === address) {
+              const out = nt.fromUserAccount === address, s = (nt.amount || 0) / 1e9;
+              if (s >= 0.001) items.push({ ts, out, v: s * px, other: out ? nt.toUserAccount : nt.fromUserAccount, name: null });
             }
-            items.push({ ts, out, v: Math.abs(subjDelta) * px, other, name: null });
           }
-        }
-        // SPL stablecoin flow (USD ≈ token amount)
-        const preT = tx.meta?.preTokenBalances || [], postT = tx.meta?.postTokenBalances || [];
-        if (postT.length || preT.length) {
-          const key = b => `${b.owner}|${b.mint}`;
-          const map = {};
-          for (const b of preT) map[key(b)] = (map[key(b)] || 0) - (b.uiTokenAmount?.uiAmount || 0);
-          for (const b of postT) map[key(b)] = (map[key(b)] || 0) + (b.uiTokenAmount?.uiAmount || 0);
-          for (const mint of Object.keys(SPL_STABLE)) {
-            const subjKey = `${address}|${mint}`;
-            const subjDelta = map[subjKey];
-            if (subjDelta && Math.abs(subjDelta) >= 1) {
-              const out = subjDelta < 0;
-              let other = null, bestVal = 0;
-              for (const k of Object.keys(map)) {
-                if (k === subjKey || !k.endsWith('|' + mint)) continue;
-                const d = map[k];
-                if (out && d > bestVal) { bestVal = d; other = k.split('|')[0]; }
-                if (!out && d < bestVal) { bestVal = d; other = k.split('|')[0]; }
-              }
-              items.push({ ts, out, v: Math.abs(subjDelta), other, name: other ? null : SPL_STABLE[mint] + ' pool' });
+          for (const tt of (tx.tokenTransfers || [])) {
+            if (tt.fromUserAccount === address || tt.toUserAccount === address) {
+              const out = tt.fromUserAccount === address, amt = tt.tokenAmount || 0, stable = SPL_STABLE[tt.mint];
+              const other = out ? tt.toUserAccount : tt.fromUserAccount;
+              if (amt > 0) items.push({ ts, out, v: stable ? amt : 0, other, name: other ? null : (stable || 'SPL') });
             }
           }
         }
       }
-      parsed = items.length > 0;
+    } else {
+      // Public RPC (no key): batched getTransaction — best-effort; cloud IPs get throttled
+      const N = Number(process.env.SOL_PARSE_LIMIT) || 12;
+      const take = (sigs || []).filter(s => !s.err).slice(0, N).map(s => s.signature);
+      if (take.length) {
+        const batch = take.map((sig, i) => ({ jsonrpc: '2.0', id: i, method: 'getTransaction', params: [sig, { maxSupportedTransactionVersion: 0, encoding: 'jsonParsed' }] }));
+        const fetchBatch = () => fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(batch), signal: AbortSignal.timeout(18000) }).then(r => r.json()).catch(() => null);
+        let resp = await fetchBatch();
+        if (!Array.isArray(resp)) { await new Promise(r => setTimeout(r, 900)); resp = await fetchBatch(); }
+        const txs = Array.isArray(resp) ? resp.map(r => r && r.result).filter(Boolean) : [];
+        for (const tx of txs) {
+          const ts = tx.blockTime ? tx.blockTime * 1000 : null;
+          const keys = (tx.transaction?.message?.accountKeys || []).map(k => (typeof k === 'string' ? k : k.pubkey));
+          const pre = tx.meta?.preBalances || [], post = tx.meta?.postBalances || [];
+          const si = keys.indexOf(address);
+          if (si >= 0 && pre.length && post.length) {
+            const subjDelta = (post[si] - pre[si]) / 1e9;
+            if (Math.abs(subjDelta) >= 0.001) {
+              const out = subjDelta < 0; let other = null, bestVal = 0;
+              for (let i = 0; i < Math.min(keys.length, pre.length, post.length); i++) {
+                if (i === si) continue; const d = (post[i] - pre[i]) / 1e9;
+                if (out && d > bestVal) { bestVal = d; other = keys[i]; }
+                if (!out && d < bestVal) { bestVal = d; other = keys[i]; }
+              }
+              items.push({ ts, out, v: Math.abs(subjDelta) * px, other, name: null });
+            }
+          }
+          const preT = tx.meta?.preTokenBalances || [], postT = tx.meta?.postTokenBalances || [];
+          if (postT.length || preT.length) {
+            const kf = b => `${b.owner}|${b.mint}`; const map = {};
+            for (const b of preT) map[kf(b)] = (map[kf(b)] || 0) - (b.uiTokenAmount?.uiAmount || 0);
+            for (const b of postT) map[kf(b)] = (map[kf(b)] || 0) + (b.uiTokenAmount?.uiAmount || 0);
+            for (const mint of Object.keys(SPL_STABLE)) {
+              const subjKey = `${address}|${mint}`, subjDelta = map[subjKey];
+              if (subjDelta && Math.abs(subjDelta) >= 1) {
+                const out = subjDelta < 0; let other = null, bestVal = 0;
+                for (const k of Object.keys(map)) {
+                  if (k === subjKey || !k.endsWith('|' + mint)) continue; const d = map[k];
+                  if (out && d > bestVal) { bestVal = d; other = k.split('|')[0]; }
+                  if (!out && d < bestVal) { bestVal = d; other = k.split('|')[0]; }
+                }
+                items.push({ ts, out, v: Math.abs(subjDelta), other, name: other ? null : SPL_STABLE[mint] + ' pool' });
+              }
+            }
+          }
+        }
+      }
     }
-  } catch (_) { /* fall back to activity-only below */ }
+    parsed = items.length > 0;
+  } catch (_) { /* fall back below */ }
 
   const { cps, timeline, inUsd, outUsd } = aggregate(items);
   const txCount = (sigs || []).length >= 200 ? '200+' : (sigs || []).length;
@@ -233,10 +249,9 @@ async function sol(address) {
       timeline: timeline.labels.length ? timeline : { labels: ['window'], inflow: [inUsd], outflow: [outUsd] },
       counterparties: cps,
       graph: graphFromCps(short(address), cps), qa: [],
-      note: 'Native SOL + USDC/USDT flows from the recent transaction window. Other SPL tokens are not yet valued.'
+      note: key ? 'Native SOL + SPL transfers via Helius (USD shown for SOL, USDC, USDT).' : 'Native SOL + USDC/USDT flows from the recent transaction window.'
     };
   }
-  // fallback: balance + activity only (no parseable SOL/stablecoin transfers found)
   const tl = aggregate(times.map(ts => ({ ts, out: false, v: 0 }))).timeline;
   return {
     chain: 'sol', live: true, source, id: 'live_sol_' + address.slice(0, 8), caseNo: 'LIVE / ' + source,
@@ -245,10 +260,10 @@ async function sol(address) {
     balanceNative: bal.toLocaleString('en-US', { maximumFractionDigits: 4 }) + ' SOL', balanceUsd: usd(bal * px),
     first: times.length ? fmtDate(Math.min(...times)) : '—', last: times.length ? fmtDate(Math.max(...times)) : '—',
     txCount, risk: 14,
-    flags: [{ t: 'Flow parsing needs a dedicated RPC', s: 'info', d: 'Balance, transaction count, and timing are live. Full SOL/SPL flow + counterparty parsing needs a dedicated RPC — add a free HELIUS_KEY in the server env to enable it (the public RPC rate-limits transaction parsing from cloud hosts like Vercel).' }],
+    flags: [{ t: 'No valued transfers in window', s: 'info', d: key ? 'Balance, tx count and timing are live via Helius. Recent activity had no SOL/SPL value transfers to map (e.g. program interactions or NFT actions).' : 'Balance, tx count and timing are live. Full flow parsing needs a dedicated RPC — add a free HELIUS_KEY in the server env.' }],
     stats: { in: 0, out: 0, peak: tl.labels.slice(-1)[0] || '—', peakV: 0 },
     timeline: tl.labels.length ? tl : { labels: ['window'], inflow: [0], outflow: [0] },
-    counterparties: [{ addr: short(address), label: 'Add HELIUS_KEY for full Solana flows', dir: 'both', txs: (sigs || []).length, usd: 0, tag: ['Needs RPC', 'amber'] }],
+    counterparties: [{ addr: short(address), label: key ? 'No valued transfers in recent window' : 'Add HELIUS_KEY for full Solana flows', dir: 'both', txs: (sigs || []).length, usd: 0, tag: key ? ['', ''] : ['Needs RPC', 'amber'] }],
     graph: { nodes: [{ id: 'subj', name: short(address), cat: 0, size: 42 }], edges: [] }, qa: []
   };
 }
