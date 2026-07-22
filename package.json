@@ -1,0 +1,16 @@
+{
+  "name": "chainsight-backend",
+  "version": "0.3.0",
+  "description": "Chainsight — AI investigation reports + chat and server-side chain data (keys stay server-side).",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

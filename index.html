@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chainsight — Blockchain Investigation Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,100..1000&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root{
+  --bg:#ffffff; --card:#ffffff; --card-2:#F8F5ED; --popover:#ffffff;
+  --border:rgba(0,0,0,.08); --border-2:rgba(0,0,0,.12); --input:rgba(0,0,0,.14);
+  --fg:#000; --fg-2:#3d3c38; --muted:#707070; --muted-2:#a19d90; --faint:#b8b5aa;
+  --primary:#6ECE9D; --primary-fg:#000;
+  --violet:#3e9d6f; --violet-dim:rgba(110,206,157,.2);
+  --emerald:#10b981; --emerald-dim:#E4F5EC;
+  --amber:#f59e0b; --amber-dim:#FBF3E0;
+  --red:#ef4444; --red-dim:#FBEAEA;
+  --blue:#3b82f6; --blue-dim:#E7F0FB;
+  --r:16px; --r-sm:12px;
+  --font:'DM Sans',system-ui,-apple-system,sans-serif;
+  --mono:'Geist Mono',ui-monospace,'SF Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden}
+::selection{background:rgba(110,206,157,.4);color:#000}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#ddd;border-radius:6px;border:2px solid #fff}
+::-webkit-scrollbar-track{background:transparent}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+svg{display:block}
+.mono{font-family:var(--mono)}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- primitives (light, landing-consistent) ---------- */
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;font-size:13.5px;font-weight:500;padding:9px 16px;border:1px solid transparent;transition:opacity .18s,background .18s,transform .12s;white-space:nowrap;text-transform:capitalize}
+.btn:focus-visible{outline:2px solid #6ECE9D;outline-offset:2px}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:#6ECE9D;color:#000}
+.btn-primary:hover{opacity:.9}
+.btn-outline{background:#fff;color:#000;border-color:rgba(0,0,0,.13)}
+.btn-outline:hover{background:#F7F6F2}
+.btn-ghost{background:transparent;color:#707070}
+.btn-ghost:hover{background:#F0F0F0;color:#000}
+.btn-sm{padding:6px 12px;font-size:12.5px;border-radius:10px}
+.btn svg{width:15px;height:15px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.02em;padding:3px 10px;border-radius:999px;border:1px solid transparent;color:#555;background:#F0F0F0;white-space:nowrap}
+.badge.violet{background:#E4F5EC;color:#237a52}
+.badge.red{background:#FBEAEA;color:#c04747}
+.badge.amber{background:#FBF3E0;color:#b07b12}
+.badge.emerald{background:#E4F5EC;color:#237a52}
+.badge.blue{background:#E7F0FB;color:#2f6fbd}
+.badge.outline{background:transparent;border-color:rgba(0,0,0,.12);color:#707070}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.02)}
+.card-h{padding:14px 18px;border-bottom:1px solid rgba(0,0,0,.07);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-t{font-size:13.5px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;color:#000}
+.card-t svg{width:15px;height:15px;color:#a19d90}
+.card-b{padding:18px}
+.input{background:#fff;border:1px solid rgba(0,0,0,.14);border-radius:10px;color:#000;font-size:13.5px;padding:9px 12px;width:100%;transition:border-color .15s,box-shadow .15s}
+.input::placeholder{color:#b8b5aa}
+.input:focus{outline:none;border-color:#6ECE9D;box-shadow:0 0 0 3px rgba(110,206,157,.25)}
+kbd{font-family:var(--mono);font-size:10.5px;color:#707070;background:#F0F0F0;border:1px solid rgba(0,0,0,.1);border-bottom-width:2px;border-radius:5px;padding:1.5px 5.5px}
+.sep{height:1px;background:rgba(0,0,0,.08);border:0}
+.skeleton{background:linear-gradient(90deg,#F1F0EC 25%,#E9E7E0 50%,#F1F0EC 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:10px}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ---------- toasts ---------- */
+#toasts{position:fixed;top:18px;right:18px;z-index:200;display:flex;flex-direction:column;gap:8px;max-width:360px}
+.toast{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:11px 14px;font-size:13px;color:#3d3c38;box-shadow:0 10px 34px rgba(0,0,0,.14);display:flex;gap:10px;align-items:flex-start;animation:toastIn .22s ease}
+.toast svg{width:15px;height:15px;flex-shrink:0;margin-top:1.5px}
+.toast.ok svg{color:#2f9e6e}.toast.warn svg{color:#b07b12}.toast.err svg{color:#c04747}
+@keyframes toastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* ============================================================
+   LANDING — next-saas-lp design system (DM Sans · mint/cream)
+   ============================================================ */
+#view-landing{display:block;background:#fff;color:#707070;font-family:'DM Sans',system-ui,sans-serif;font-size:18px;line-height:1.6;overflow-x:hidden}
+#view-landing ::selection{background:rgba(110,206,157,.4);color:#000}
+.lp-wrap{max-width:1024px;margin:0 auto;padding:0 20px}
+.lp-sec{margin-top:clamp(90px,13vw,160px)}
+.lp-grad{background:linear-gradient(180deg,#000 15%,rgba(0,0,0,.55));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lp-h1{font-size:clamp(42px,8.6vw,96px);font-weight:500;letter-spacing:-.03em;line-height:1.02;color:#000}
+.lp-h2{font-size:clamp(28px,4.8vw,64px);font-weight:500;letter-spacing:-.02em;line-height:1.12;text-transform:capitalize}
+.lp-desc{font-size:clamp(14px,1.6vw,18px);max-width:75%;margin:0 auto;line-height:1.65}
+@media(max-width:640px){.lp-desc{max-width:100%;padding:0 8px}}
+.lp-sechead{display:flex;flex-direction:column;align-items:center;gap:clamp(22px,3.2vw,38px);text-align:center}
+
+/* slide + blur animation primitives */
+.sl{opacity:0;transform:translateY(70px);transition:transform .95s cubic-bezier(.22,1.18,.32,1),opacity .7s ease;transition-delay:var(--d,.1s);will-change:transform,opacity}
+.sl.dir-r{transform:translateX(-70px)}
+.sl.dir-l{transform:translateX(70px)}
+.sl.in{opacity:1;transform:none}
+.lp-ch{display:inline-block;white-space:pre;opacity:0;filter:blur(32px);transform:scale(.9) translateY(20px)}
+.lp-ch.on{opacity:1;filter:blur(0);transform:none;transition:all .7s cubic-bezier(.19,1,.22,1)}
+@media(prefers-reduced-motion:reduce){.sl,.lp-ch{opacity:1!important;transform:none!important;filter:none!important;transition:none!important}}
+
+/* buttons */
+.lp-btn{background:#6ECE9D;color:#000;border:none;border-radius:12px;padding:13px 22px;font-size:17px;font-weight:500;text-transform:capitalize;display:inline-flex;gap:9px;align-items:center;justify-content:center;font-family:inherit;transition:opacity .2s,transform .15s,background .2s;text-decoration:none}
+.lp-btn:hover{opacity:.92}
+.lp-btn:active{transform:scale(.97);opacity:.82}
+.lp-btn.sec{background:#F0F0F0}
+.lp-btn.sec:hover{background:#e6e6e6;opacity:1}
+.lp-btn.sm{padding:9px 16px;font-size:15px;border-radius:9px}
+.lp-btn svg{width:18px;height:18px}
+
+/* numbered badge */
+.lp-nbadge{display:inline-flex;align-items:center;height:34px;background:#F0F0F0;border-radius:999px;color:#000;margin:0 auto}
+.lp-nbadge .n{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.1);display:grid;place-items:center;font-weight:500;font-size:15px}
+.lp-nbadge .t{padding:0 16px;text-transform:uppercase;letter-spacing:.1em;font-size:12px;font-weight:500}
+
+/* nav */
+.lp-nav{width:100%;padding:18px 0;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:90}
+.lp-logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:19px;letter-spacing:-.02em;color:#000;text-decoration:none}
+.lp-logo .mk{width:32px;height:32px;border-radius:9px;background:#6ECE9D;display:grid;place-items:center}
+.lp-logo .mk svg{width:17px;height:17px;color:#000}
+.lp-links{display:flex;align-items:center;gap:26px;list-style:none}
+.lp-links a{color:#000;font-weight:500;font-size:16px;text-transform:capitalize;text-decoration:none;transition:opacity .2s;cursor:pointer}
+.lp-links a:hover{opacity:.7}
+.lp-navright{display:flex;align-items:center;gap:20px}
+.lp-burger{display:none;background:none;border:none;color:#000;padding:4px}
+.lp-burger svg{width:22px;height:22px}
+.lp-menu{position:fixed;top:68px;left:0;width:100%;background:#fff;z-index:80;overflow:hidden;height:0;transition:height .7s cubic-bezier(.16,1,.3,1)}
+.lp-menu.open{height:calc(100vh - 68px)}
+.lp-menu-in{padding:28px 24px;display:flex;flex-direction:column;gap:22px}
+.lp-menu-in a{color:#000;font-weight:500;font-size:19px;text-transform:capitalize;text-decoration:none}
+@media(max-width:820px){.lp-links,.lp-navright .lp-btn{display:none}.lp-burger{display:block}}
+
+/* hero */
+.lp-hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:clamp(28px,4.5vw,44px);margin-top:clamp(48px,8vw,110px)}
+.lp-hero .lp-sub{font-size:clamp(14px,1.7vw,18px);max-width:72%;margin:0 auto}
+@media(max-width:640px){.lp-hero .lp-sub{max-width:100%;padding:0 12px}}
+.lp-ctas{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.lp-proof{display:flex;gap:20px;align-items:center;justify-content:center;flex-wrap:wrap}
+.lp-avs{display:flex;padding-left:10px}
+.lp-av{width:46px;height:46px;border-radius:50%;border:2.5px solid #fff;margin-left:-11px;display:grid;place-items:center;font-weight:600;font-size:17px;color:#000;position:relative;cursor:default;transition:transform .25s cubic-bezier(.34,1.56,.64,1);z-index:1}
+.lp-av:hover{transform:translateY(-5px) scale(1.08);z-index:5}
+.lp-av .tip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(6px) rotate(-3deg);background:#000;color:#fff;border-radius:9px;padding:7px 12px;white-space:nowrap;opacity:0;pointer-events:none;transition:all .28s cubic-bezier(.34,1.56,.64,1);text-align:center}
+.lp-av:hover .tip{opacity:1;transform:translateX(-50%) translateY(0) rotate(0)}
+.lp-av .tip b{display:block;font-size:12.5px;font-weight:600}
+.lp-av .tip span{font-size:10.5px;color:#a1a1aa}
+.lp-stars{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+@media(max-width:640px){.lp-stars{align-items:center}}
+.lp-stars .row{display:flex;gap:2px}
+.lp-stars svg{width:16px;height:16px;fill:#eab308;color:#eab308}
+.lp-stars span{font-size:12.5px}
+
+/* hero console shot */
+.lp-shot-wrap{position:relative;width:100%;margin-top:6px}
+.lp-shot{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:20px;box-shadow:0 30px 70px -28px rgba(9,9,11,.22);overflow:hidden;text-align:left;user-select:none;font-family:'DM Sans',sans-serif}
+.lp-fade{position:absolute;bottom:-2px;left:0;width:100%;height:36%;background:linear-gradient(180deg,rgba(255,255,255,0),#fff);pointer-events:none;z-index:5}
+.sh-top{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid rgba(0,0,0,.07)}
+.sh-dots{display:flex;gap:6px}
+.sh-dots i{width:11px;height:11px;border-radius:50%}
+.sh-pill{font-family:'Geist Mono',monospace;font-size:10.5px;color:#707070;background:#F0F0F0;border:1px solid rgba(0,0,0,.04);border-radius:6px;padding:4px 10px}
+.sh-risk{margin-left:auto;font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;color:#c04747;background:#FBEAEA;border-radius:5px;padding:3px 8px}
+.sh-body{display:grid;grid-template-columns:190px 1fr;min-height:300px}
+.sh-side{border-right:1px solid rgba(0,0,0,.07);padding:12px 10px;display:flex;flex-direction:column;gap:5px;background:#FAF9F5}
+.sh-slabel{font-family:'Geist Mono',monospace;font-size:8.5px;letter-spacing:.14em;color:#a39f92;text-transform:uppercase;padding:0 6px 6px}
+.sh-case{display:flex;align-items:center;gap:7px;padding:8px 9px;border-radius:8px;border:1px solid transparent}
+.sh-case.on{background:#fff;border-color:rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.sh-case svg{width:13px;height:13px;flex-shrink:0}
+.sh-case .nm{font-size:10.5px;color:#333;font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sh-case .rk{font-family:'Geist Mono',monospace;font-size:8.5px;font-weight:600;padding:1.5px 5px;border-radius:4px}
+.sh-case .rk.hot{background:#FBEAEA;color:#c04747}
+.sh-case .rk.ok{background:#E4F5EC;color:#237a52}
+.sh-main{padding:14px;display:flex;flex-direction:column;gap:12px}
+.sh-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sh-stat{background:#FAF9F5;border:1px solid rgba(0,0,0,.06);border-radius:9px;padding:9px 11px}
+.sh-stat .k{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:#a39f92}
+.sh-stat .v{font-family:'Geist Mono',monospace;font-size:12.5px;font-weight:600;color:#000;margin-top:3px}
+.sh-row{display:grid;grid-template-columns:1.3fr 1fr .6fr;gap:8px;flex:1}
+.sh-panel{background:#FAF9F5;border:1px solid rgba(0,0,0,.06);border-radius:9px;padding:10px 11px;position:relative;overflow:hidden}
+.sh-panel .k{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:#a39f92;margin-bottom:8px}
+.sh-bars{display:flex;align-items:center;gap:4px;height:96px}
+.sh-bcol{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1.5px;height:100%}
+.sh-bcol i{display:block;border-radius:2px}
+.sh-bcol .u{background:#6ECE9D;align-self:stretch}
+.sh-bcol .d{background:#F0A8A0;align-self:stretch}
+.sh-ring{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.sh-ring .num{font-family:'Geist Mono',monospace;font-size:17px;font-weight:600;color:#c04747}
+.sh-ring .lbl{font-family:'Geist Mono',monospace;font-size:8px;letter-spacing:.12em;color:#c04747}
+@media(max-width:760px){.sh-side{display:none}.sh-body{grid-template-columns:1fr}.sh-stats{grid-template-columns:repeat(2,1fr)}.sh-row{grid-template-columns:1fr 1fr}.sh-ring{display:none}}
+
+/* cards */
+.lp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:100%;margin-top:clamp(20px,3vw,34px)}
+@media(max-width:860px){.lp-grid2{grid-template-columns:1fr}}
+.lp-card{border-radius:16px;background:#F8F5ED;padding:clamp(26px,3.6vw,40px);display:flex;flex-direction:column;align-items:flex-start;gap:16px;text-align:left;height:100%;box-sizing:border-box}
+.lp-card h3{font-size:clamp(19px,2.4vw,28px);color:#000;font-weight:500;letter-spacing:-.015em;line-height:1.25}
+.lp-card p{font-size:clamp(14px,1.5vw,16px);line-height:1.65}
+.lp-card .fill{margin-top:auto;width:100%}
+
+/* marquee */
+.lp-marq{overflow:hidden;width:100%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);padding:6px 0}
+.lp-marq-in{display:flex;gap:12px;width:max-content;animation:lpmarq 26s linear infinite}
+@keyframes lpmarq{to{transform:translateX(-50%)}}
+.lp-chip{display:inline-flex;align-items:center;gap:9px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:999px;padding:10px 19px;font-size:14.5px;color:#000;font-weight:500;white-space:nowrap}
+.lp-chip .bglyph{width:17px;height:17px}
+.lp-chip .bglyph svg{width:17px;height:17px}
+
+/* inline mocks on cream cards */
+.lp-flagstack{display:flex;flex-direction:column;gap:8px;width:100%}
+.lp-flag{background:#fff;border-radius:11px;padding:11px 15px;display:flex;gap:11px;align-items:center;font-size:13.5px;color:#000;font-weight:500}
+.lp-flag i{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.lp-flag em{font-style:normal;margin-left:auto;font-family:'Geist Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.06em}
+.lp-mockrep{background:#fff;border-radius:13px;padding:18px 20px;width:100%;display:flex;flex-direction:column;gap:9px}
+.lp-mockrep .h{font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.14em;color:#6ECE9D;filter:brightness(.72);text-transform:uppercase;font-weight:600}
+.lp-mockrep .l{font-size:12.5px;color:#555;line-height:1.55}
+.lp-minigraph{width:100%;background:#fff;border-radius:13px;padding:10px}
+.lp-mockbars{background:#fff;border-radius:13px;padding:18px;width:100%;display:flex;align-items:center;gap:5px;height:150px}
+.lp-mockbars .c{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px;height:100%}
+.lp-mockbars .c i{display:block;border-radius:2.5px}
+.lp-mockbars .c .u{background:#6ECE9D}
+.lp-mockbars .c .d{background:#f1b8b0}
+.lp-mocktable{background:#fff;border-radius:13px;width:100%;overflow:hidden}
+.lp-mocktable .tr{display:flex;align-items:center;gap:12px;padding:12px 17px;border-bottom:1px solid rgba(0,0,0,.06)}
+.lp-mocktable .tr:last-child{border-bottom:none}
+.lp-mocktable .nm{font-size:13.5px;color:#000;font-weight:500;flex:1;text-align:left}
+.lp-mocktable .nm small{display:block;font-family:'Geist Mono',monospace;font-size:10px;color:#999;font-weight:400;margin-top:1px}
+.lp-mocktable .dr{font-family:'Geist Mono',monospace;font-size:9.5px;font-weight:600;padding:2.5px 8px;border-radius:5px}
+.lp-mocktable .dr.i{background:rgba(110,206,157,.22);color:#237a52}
+.lp-mocktable .dr.o{background:rgba(239,68,68,.1);color:#c04747}
+.lp-mocktable .vl{font-family:'Geist Mono',monospace;font-size:12.5px;color:#000;font-weight:600}
+.lp-mockchat{display:flex;flex-direction:column;gap:10px;width:100%}
+.lp-mockchat .b{max-width:88%;border-radius:13px;padding:11px 15px;font-size:13.5px;line-height:1.55;text-align:left}
+.lp-mockchat .q{align-self:flex-end;background:#DCF3E8;color:#0b3d27}
+.lp-mockchat .a{align-self:flex-start;background:#fff;color:#333}
+.lp-mockchat .a .who{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.12em;color:#3e9d6f;text-transform:uppercase;font-weight:600;margin-bottom:5px}
+.lp-mockcode{background:#0a0a0d;border-radius:13px;padding:17px 19px;width:100%;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.8;text-align:left;overflow-x:auto}
+.lp-mockcode .c1{color:#c4b5fd}.lp-mockcode .c2{color:#a1a1aa}.lp-mockcode .c3{color:#52525b}.lp-mockcode .c4{color:#6ee7b7}
+
+/* testimonials */
+.lp-testi{display:grid;grid-template-columns:300px 1fr;gap:clamp(28px,5vw,56px);max-width:860px;margin:clamp(20px,3vw,34px) auto 0;align-items:center}
+@media(max-width:760px){.lp-testi{grid-template-columns:1fr;justify-items:center;text-align:center}}
+.lp-tiles{position:relative;width:min(300px,72vw);aspect-ratio:1}
+.lp-tile{position:absolute;inset:0;border-radius:24px;display:grid;place-items:center;font-size:104px;font-weight:500;color:rgba(0,0,0,.75);transition:all .6s cubic-bezier(.22,1.18,.32,1)}
+.lp-tile.back1{transform:rotate(-7deg) scale(.96);opacity:.55}
+.lp-tile.back2{transform:rotate(6deg) scale(.93);opacity:.35}
+.lp-tquote{text-align:left;display:flex;flex-direction:column;gap:18px}
+@media(max-width:760px){.lp-tquote{text-align:center;align-items:center}}
+.lp-tquote .qt{font-size:clamp(16.5px,2.1vw,21px);color:rgba(0,0,0,.85);line-height:1.62;min-height:5.5em}
+.lp-tquote .qt .w{display:inline-block;opacity:0;filter:blur(7px);transform:translateY(9px)}
+.lp-tquote .qt .w.on{opacity:1;filter:blur(0);transform:none;transition:all .5s cubic-bezier(.19,1,.22,1)}
+.lp-tquote .nm{font-size:16.5px;color:#000;font-weight:600}
+.lp-tquote .rl{font-size:13.5px;margin-top:2px}
+.lp-tquote .rl a{color:#3e9d6f;text-decoration:none}
+.lp-tquote .rl a:hover{text-decoration:underline}
+.lp-tnav{display:flex;gap:10px;margin-top:6px}
+.lp-tnav button{width:38px;height:38px;border-radius:50%;border:none;background:#F0F0F0;color:#000;display:grid;place-items:center;transition:background .2s,transform .15s}
+.lp-tnav button:hover{background:#e4e4e4}
+.lp-tnav button:active{transform:scale(.92)}
+.lp-tnav svg{width:17px;height:17px}
+
+/* pricing */
+.lp-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;width:100%;margin-top:clamp(20px,3vw,34px)}
+@media(max-width:900px){.lp-grid3{grid-template-columns:1fr;max-width:440px;margin-left:auto;margin-right:auto}}
+.lp-price{border-radius:16px;background:#fff;border:1px solid rgba(0,0,0,.1);padding:clamp(26px,3vw,36px);display:flex;flex-direction:column;align-items:flex-start;gap:16px;text-align:left;height:100%;position:relative;box-sizing:border-box}
+.lp-price.feat{background:#F8F5ED;border-color:transparent}
+.lp-price .soon{position:absolute;top:-13px;right:22px;background:#FFDA6E;color:#000;font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:5px 13px}
+.lp-price .pn{font-size:16px;color:#000;font-weight:500;text-transform:capitalize}
+.lp-price .pr{display:flex;align-items:baseline;gap:6px;color:#000}
+.lp-price .pr b{font-size:clamp(36px,4vw,48px);font-weight:500;letter-spacing:-.02em}
+.lp-price .pr span{font-size:14px;color:#707070}
+.lp-price .pd{font-size:14px;line-height:1.6}
+.lp-price ul{list-style:none;display:flex;flex-direction:column;gap:11px;margin:6px 0;padding:0;width:100%}
+.lp-price li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;color:rgba(0,0,0,.8);text-align:left}
+.lp-price li svg{width:18px;height:18px;color:#6ECE9D;flex-shrink:0;margin-top:1px}
+.lp-price .lp-btn{width:100%;margin-top:auto}
+
+/* faq */
+.lp-acc{max-width:672px;margin:clamp(16px,2.6vw,30px) auto 0;text-align:left;width:100%}
+.lp-qa{border-bottom:1px solid rgba(0,0,0,.1)}
+.lp-qa button{width:100%;background:none;border:none;padding:21px 4px;display:flex;align-items:center;justify-content:space-between;gap:16px;color:#000;font-size:16.5px;font-weight:500;font-family:inherit;text-align:left}
+.lp-qa button svg{width:17px;height:17px;flex-shrink:0;transition:transform .35s cubic-bezier(.16,1,.3,1);color:#707070}
+.lp-qa.open button svg{transform:rotate(180deg)}
+.lp-qa .pane{max-height:0;overflow:hidden;transition:max-height .5s cubic-bezier(.16,1,.3,1)}
+.lp-qa .pane p{padding:0 4px 21px;font-size:15px;line-height:1.7}
+.lp-qa .pane a{color:#3e9d6f}
+
+/* cta band */
+.lp-cta{background:#F8F5ED;border-radius:18px;padding:clamp(44px,7vw,72px) clamp(24px,6vw,64px);display:flex;flex-direction:column;align-items:center;gap:clamp(20px,3vw,32px);text-align:center}
+
+/* footer */
+.lp-foot{margin-top:clamp(90px,13vw,150px);border-top:1px solid rgba(0,0,0,.1);padding:clamp(38px,6vw,64px) 0;display:flex;flex-direction:column;align-items:center;gap:clamp(26px,4vw,40px);font-size:14px}
+.lp-foot .links{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(22px,4vw,40px)}
+.lp-foot .links a{color:#707070;text-decoration:none;transition:color .2s;cursor:pointer}
+.lp-foot .links a:hover{color:#000}
+.lp-foot .socials{display:flex;gap:clamp(22px,4vw,36px)}
+.lp-foot .socials a{color:#707070;transition:color .2s}
+.lp-foot .socials a:hover{color:#000}
+.lp-foot .socials svg{width:21px;height:21px}
+.lp-foot .copy{text-align:center;font-size:13px;line-height:1.7;max-width:640px;padding:0 16px}
+
+/* ============================================================
+   CONSOLE — light (matches landing design system)
+   ============================================================ */
+#view-console{display:none;min-height:100vh;background:#fff}
+.logo{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.02em;color:#000}
+.logo-mark{width:28px;height:28px;border-radius:8px;background:#6ECE9D;display:grid;place-items:center;flex-shrink:0}
+.logo-mark svg{width:15px;height:15px;color:#000}
+.top{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.86);backdrop-filter:blur(14px);border-bottom:1px solid rgba(0,0,0,.08)}
+.top-in{display:flex;align-items:center;gap:12px;min-height:58px;padding:8px 20px;flex-wrap:wrap}
+.seg{display:flex;background:#F0F0F0;border-radius:999px;padding:4px;gap:2px}
+.seg button{background:transparent;border:0;color:#707070;font-size:12.5px;font-weight:500;padding:6px 13px;border-radius:999px;display:flex;align-items:center;gap:7px;transition:all .18s}
+.seg button:hover{color:#000}
+.seg button.on{background:#fff;color:#000;box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.seg button svg,.seg .bglyph{width:13px;height:13px}
+.searchbox{flex:1;max-width:520px;position:relative;display:flex;align-items:center;min-width:200px}
+.searchbox svg.mag{position:absolute;left:12px;width:14px;height:14px;color:#b0aea6;pointer-events:none}
+.searchbox input{padding-left:34px;padding-right:64px;font-family:var(--mono);font-size:12.5px}
+.searchbox kbd{position:absolute;right:9px}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.status-dot{display:flex;align-items:center;gap:7px;font-size:12px;color:#707070}
+.status-dot i{width:7px;height:7px;border-radius:50%;background:#34c088;box-shadow:0 0 0 3px rgba(52,192,136,.18);display:block}
+.shell{display:grid;grid-template-columns:276px 1fr;min-height:calc(100vh - 58px)}
+.side{border-right:1px solid rgba(0,0,0,.08);padding:18px 14px;background:#FAF9F5}
+.side-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:#a39f92;text-transform:uppercase;padding:0 8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.case-card{width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:12px;padding:11px 12px;margin-bottom:6px;transition:all .16s;display:block}
+.case-card:hover{background:rgba(0,0,0,.04)}
+.case-card.on{background:#fff;border-color:rgba(0,0,0,.09);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.case-card .r1{display:flex;align-items:center;gap:8px}
+.case-card .r1 .bglyph,.case-card .r1 svg{width:14px;height:14px;flex-shrink:0}
+.case-card .nm{font-size:13px;font-weight:600;letter-spacing:-.01em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#000}
+.risk-chip{font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px}
+.risk-chip.crit{background:#FBEAEA;color:#c04747}
+.risk-chip.high{background:#FBF3E0;color:#b07b12}
+.risk-chip.low{background:#E4F5EC;color:#237a52}
+.case-card .ad{font-family:var(--mono);font-size:10.5px;color:#a39f92;margin-top:5px}
+.case-card .ds{font-size:11.5px;color:#707070;margin-top:4px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.side-note{margin-top:16px;border:1px dashed rgba(0,0,0,.16);border-radius:12px;padding:12px;font-size:11.5px;color:#8f8c82;line-height:1.55}
+.side-note b{color:#555}
+.main{padding:22px 24px 60px;max-width:1240px}
+.crumb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.crumb h2{font-size:20px;letter-spacing:-.02em;color:#000;font-weight:600}
+.grid-2{display:grid;grid-template-columns:1fr 400px;gap:16px}
+.grid-rc{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-top:16px}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid rgba(0,0,0,.07)}
+.stat-grid>div{padding:13px 18px;border-right:1px solid rgba(0,0,0,.07);border-bottom:1px solid rgba(0,0,0,.07)}
+.stat-grid>div:nth-child(3n){border-right:0}
+.stat-grid>div:nth-child(n+4){border-bottom:0}
+.stat-k{font-size:11px;color:#a19d90;letter-spacing:.03em;text-transform:uppercase}
+.stat-v{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:4px;letter-spacing:-.01em;color:#000}
+.stat-v small{font-size:11px;color:#999;font-weight:400}
+.addr-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.addr{font-family:var(--mono);font-size:12.5px;color:#333;background:#F8F5ED;border:1px solid rgba(0,0,0,.06);border-radius:9px;padding:6px 11px;word-break:break-all}
+.icon-btn{background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:9px;width:30px;height:30px;display:grid;place-items:center;color:#707070;transition:all .16s}
+.icon-btn:hover{color:#000;background:#F7F6F2}
+.icon-btn svg{width:13.5px;height:13.5px}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.risk-wrap{display:flex;gap:20px;align-items:center;padding:18px}
+.ring{position:relative;width:96px;height:96px;flex-shrink:0}
+.ring svg{width:96px;height:96px;transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:grid;place-items:center}
+.ring .num b{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.03em;display:block;text-align:center}
+.ring .num span{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:#a19d90;display:block;text-align:center}
+.flags{border-top:1px solid rgba(0,0,0,.07)}
+.flag{display:flex;gap:11px;padding:11px 18px;border-bottom:1px solid rgba(0,0,0,.06);align-items:flex-start}
+.flag:last-child{border-bottom:0}
+.flag .sq{width:8px;height:8px;border-radius:2.5px;margin-top:5px;flex-shrink:0}
+.flag .fl-t{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#000}
+.flag .fl-d{font-size:11.5px;color:#707070;margin-top:2px;line-height:1.5}
+.sev{font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:1.5px 6px;border-radius:4px;font-weight:600}
+.sev.critical{background:#FBEAEA;color:#c04747}
+.sev.high{background:#FBF3E0;color:#b07b12}
+.sev.medium{background:#E7F0FB;color:#2f6fbd}
+.sev.low{background:#E4F5EC;color:#237a52}
+.sev.info{background:#F0F0F0;color:#8a877d}
+.chart{width:100%;height:260px}
+#graphChart{height:440px}
+.flow-stats{display:flex;gap:0;border-bottom:1px solid rgba(0,0,0,.07);overflow-x:auto}
+.flow-stats>div{padding:13px 18px;border-right:1px solid rgba(0,0,0,.07);flex:1;min-width:128px}
+.flow-stats>div:last-child{border-right:0}
+.legend-row{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#707070}
+.legend-row span{display:flex;align-items:center;gap:6px}
+.legend-row i{width:9px;height:9px;border-radius:3px;display:block}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#a19d90;font-weight:500;text-align:left;padding:10px 18px;border-bottom:1px solid rgba(0,0,0,.08);white-space:nowrap}
+td{padding:11px 18px;border-bottom:1px solid rgba(0,0,0,.06);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:rgba(0,0,0,.018)}
+td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;color:#000}
+th.num{text-align:right}
+.dir{font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;letter-spacing:.05em}
+.dir.in{background:#E4F5EC;color:#237a52}
+.dir.out{background:#FBEAEA;color:#c04747}
+.dir.both{background:#E7F0FB;color:#2f6fbd}
+.cp-addr{font-family:var(--mono);font-size:11.5px;color:#a19d90}
+.cp-label{font-weight:500;font-size:12.5px;color:#000}
+.report-meta{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:#a19d90;letter-spacing:.04em;padding:12px 18px;border-bottom:1px solid rgba(0,0,0,.07);text-transform:uppercase;background:#FAF9F5}
+.report-body{padding:20px 22px;position:relative}
+.report-body h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#3e9d6f;margin:22px 0 10px}
+.report-body h4:first-child{margin-top:0}
+.report-body p{font-size:13.5px;line-height:1.75;color:#3d3c38}
+.report-body ol,.report-body ul{margin-left:18px;display:flex;flex-direction:column;gap:8px}
+.report-body li{font-size:13px;line-height:1.65;color:#3d3c38}
+.report-body li::marker{color:#a19d90;font-family:var(--mono);font-size:11px}
+.ntx{font-family:var(--mono);font-size:11.5px;background:#F8F5ED;border:1px solid rgba(0,0,0,.05);border-radius:9px;padding:9px 12px;color:#3d3c38;line-height:1.6}
+.ntx b{color:#237a52;font-weight:600}
+.shimmer-overlay{position:absolute;inset:0;background:rgba(255,255,255,.88);backdrop-filter:blur(2px);display:grid;place-items:center;z-index:5}
+.shimmer-overlay .in{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#707070;font-family:var(--mono)}
+.spinner{width:14px;height:14px;border:2px solid rgba(0,0,0,.12);border-top-color:#6ECE9D;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chat{display:flex;flex-direction:column;height:100%;min-height:480px}
+.chat-msgs{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%;font-size:13px;line-height:1.65;border-radius:13px;padding:10px 14px}
+.msg.user{align-self:flex-end;background:#DCF3E8;color:#0b3d27}
+.msg.ai{align-self:flex-start;background:#FAF9F5;border:1px solid rgba(0,0,0,.06);color:#3d3c38}
+.msg.ai .who{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:#3e9d6f;text-transform:uppercase;margin-bottom:6px}
+.msg.ai .who svg{width:11px;height:11px}
+.typing{display:flex;gap:4px;padding:4px 2px}
+.typing i{width:5px;height:5px;border-radius:50%;background:#b8b5aa;animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.chips{display:flex;gap:7px;flex-wrap:wrap;padding:0 18px 12px}
+.chip{font-size:11.5px;color:#555;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:999px;padding:5px 12px;transition:all .16s}
+.chip:hover{color:#000;border-color:rgba(0,0,0,.25);background:#F7F6F2}
+.chat-input{border-top:1px solid rgba(0,0,0,.07);padding:12px 14px;display:flex;gap:9px}
+.chat-input .input{flex:1}
+#mainSkeleton{display:none}
+#mainSkeleton .skrow{display:grid;grid-template-columns:1fr 400px;gap:16px;margin-bottom:16px}
+.bglyph{display:inline-flex}
+.section-gap{margin-top:16px}
+.foot-note{margin-top:26px;font-size:11.5px;color:#a19d90;line-height:1.6;border-top:1px solid rgba(0,0,0,.08);padding-top:16px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+@media (max-width:1080px){
+  .grid-2,.grid-rc,#mainSkeleton .skrow{grid-template-columns:1fr}
+}
+@media (max-width:900px){
+  .top-in{padding:8px 14px;row-gap:8px}
+  .searchbox{order:10;flex-basis:100%;max-width:none}
+  .searchbox kbd{display:none}
+  .status-dot span{display:none}
+}
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .side{border-right:0;border-bottom:1px solid rgba(0,0,0,.08);display:flex;gap:10px;overflow-x:auto;padding:12px 14px}
+  .side .side-label,.side .side-note{display:none}
+  .case-card{min-width:235px;margin-bottom:0;border-color:rgba(0,0,0,.09);background:#fff;flex-shrink:0}
+  .main{padding:16px 14px 48px}
+  .crumb h2{font-size:17px}
+  #graphChart{height:340px}
+  .chart{height:230px}
+  .chat{min-height:420px}
+  .risk-wrap{padding:16px;gap:16px}
+  .report-body{padding:16px}
+  th,td{padding-left:14px;padding-right:14px}
+}
+@media (max-width:640px){
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .stat-grid>div{border-right:1px solid rgba(0,0,0,.07);border-bottom:1px solid rgba(0,0,0,.07)}
+  .stat-grid>div:nth-child(2n){border-right:0}
+  .stat-grid>div:nth-child(n+5){border-bottom:0}
+  .seg .lbl{display:none}
+  .flow-stats>div{min-width:108px;padding:11px 14px}
+  .addr{font-size:10.5px}
+  .msg{max-width:94%}
+}
+.ai-ov{position:fixed;inset:0;background:rgba(20,20,25,.5);backdrop-filter:blur(4px);z-index:300;display:none;place-items:center;padding:20px}
+.ai-ov.open{display:grid}
+.ai-modal{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:16px;max-width:460px;width:100%;padding:26px;box-shadow:0 30px 80px rgba(0,0,0,.3)}
+.ai-modal h3{font-size:18px;font-weight:600;color:#000;margin-bottom:8px;letter-spacing:-.01em}
+.ai-modal p{font-size:13px;color:#707070;line-height:1.6;margin-bottom:14px}
+.ai-modal code{font-family:var(--mono);font-size:11.5px;background:#F0F0F0;padding:1px 6px;border-radius:5px;color:#000}
+.ai-modal .row{display:flex;gap:8px;margin-top:14px}
+.ai-status{font-size:12px;margin-top:10px;font-family:var(--mono);min-height:16px}
+#aiBtn.ai-live{border-color:rgba(110,206,157,.5);background:#E4F5EC;color:#237a52}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="ai-ov" id="aiOverlay"><div class="ai-modal">
+  <h3>Connect your AI backend</h3>
+  <p>Deploy the Chainsight backend (OpenRouter · <code>poolside/laguna-s-2.1:free</code>) and paste its URL to switch reports + chat into real AI. Or open the app directly from your deployment and it connects automatically.</p>
+  <input class="input" id="aiModalUrl" placeholder="https://your-app.vercel.app" autocomplete="off" spellcheck="false">
+  <div class="ai-status" id="aiModalMsg"></div>
+  <div class="row">
+    <button class="btn btn-primary btn-sm" onclick="saveAI()">Connect</button>
+    <button class="btn btn-outline btn-sm" onclick="closeAI()">Cancel</button>
+  </div>
+</div></div>
+
+<!-- ============================ LANDING ============================ -->
+<div id="view-landing">
+  <div class="lp-wrap">
+
+    <!-- NAV -->
+    <nav class="lp-nav">
+      <a class="lp-logo" href="#" onclick="return goHome(event)"><span class="mk" id="lpLm"></span>Chainsight</a>
+      <div class="lp-navright">
+        <ul class="lp-links">
+          <li><a href="#features">features</a></li>
+          <li><a href="#how">how it works</a></li>
+          <li><a onclick="enterConsole()">case files</a></li>
+          <li><a href="#pricing">pricing</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <button class="lp-btn sm" onclick="enterConsole()">launch console</button>
+      </div>
+      <button class="lp-burger" onclick="lpMenu()" aria-label="Menu"><span id="lpBurgIc" data-ic="menu"></span></button>
+    </nav>
+    <div class="lp-menu" id="lpMenuPanel"><div class="lp-menu-in">
+      <a href="#features" onclick="lpMenu()">features</a>
+      <a href="#how" onclick="lpMenu()">how it works</a>
+      <a onclick="lpMenu();enterConsole()">case files</a>
+      <a href="#pricing" onclick="lpMenu()">pricing</a>
+      <a href="#faq" onclick="lpMenu()">FAQ</a>
+      <button class="lp-btn" onclick="enterConsole()">launch console</button>
+    </div></div>
+
+    <!-- HERO -->
+    <header class="lp-hero">
+      <h1 class="lp-h1" id="lpH1">Every wallet tells a story.</h1>
+      <p class="lp-sub sl">Chainsight turns raw on-chain data into clear, conversational investigations — behavior profiling, relationship maps, risk flags, and AI-written reports across Ethereum, Solana, and Bitcoin.</p>
+      <div class="sl" style="--d:.18s">
+        <div class="lp-ctas">
+          <button class="lp-btn" onclick="enterConsole('eth_ronin')">open a live case file <span data-ic="arrowRight"></span></button>
+          <button class="lp-btn sec" onclick="enterConsole()">launch the console</button>
+        </div>
+      </div>
+      <div class="lp-proof sl" style="--d:.26s">
+        <div class="lp-avs">
+          <span class="lp-av" style="background:#6ECE9D"><span class="tip"><b>Ezekiel D'King</b><span>The idea · @Ezekieldking94</span></span>E</span>
+          <span class="lp-av" style="background:#FFDA6E"><span class="tip"><b>Skamber</b><span>The build · @0xSkamber</span></span>S</span>
+          <span class="lp-av" style="background:#B7E4CE"><span class="tip"><b>Analysts</b><span>follow the money</span></span>A</span>
+          <span class="lp-av" style="background:#F0F0F0"><span class="tip"><b>Compliance teams</b><span>screen with confidence</span></span>C</span>
+          <span class="lp-av" style="background:#E8E3F9"><span class="tip"><b>Journalists</b><span>receipts, on-chain</span></span>J</span>
+        </div>
+        <div class="lp-stars">
+          <div class="row">
+            <svg viewBox="0 0 24 24" fill="#eab308"><path d="M11.5 1.9 14.4 8l6.6.9-4.8 4.6 1.2 6.5-5.9-3.1-5.9 3.1 1.2-6.5L2 8.9 8.6 8z"/></svg>
+            <svg viewBox="0 0 24 24" fill="#eab308"><path d="M11.5 1.9 14.4 8l6.6.9-4.8 4.6 1.2 6.5-5.9-3.1-5.9 3.1 1.2-6.5L2 8.9 8.6 8z"/></svg>
+            <svg viewBox="0 0 24 24" fill="#eab308"><path d="M11.5 1.9 14.4 8l6.6.9-4.8 4.6 1.2 6.5-5.9-3.1-5.9 3.1 1.2-6.5L2 8.9 8.6 8z"/></svg>
+            <svg viewBox="0 0 24 24" fill="#eab308"><path d="M11.5 1.9 14.4 8l6.6.9-4.8 4.6 1.2 6.5-5.9-3.1-5.9 3.1 1.2-6.5L2 8.9 8.6 8z"/></svg>
+            <svg viewBox="0 0 24 24" fill="#eab308"><path d="M11.5 1.9 14.4 8l6.6.9-4.8 4.6 1.2 6.5-5.9-3.1-5.9 3.1 1.2-6.5L2 8.9 8.6 8z"/></svg>
+          </div>
+          <span>From pitch to product in 24 hours</span>
+        </div>
+      </div>
+
+      <!-- console shot -->
+      <div class="lp-shot-wrap sl" style="--d:.15s">
+        <div class="lp-shot">
+          <div class="sh-top">
+            <div class="sh-dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+            <span class="sh-pill">chainsight — investigation console</span>
+            <span class="sh-risk">RISK 96 · CRITICAL</span>
+          </div>
+          <div class="sh-body">
+            <div class="sh-side">
+              <div class="sh-slabel">Case files</div>
+              <div class="sh-case on"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2 5.5 12.2 12 16l6.5-3.8L12 2Z" fill="#a1a1aa"/><path d="M12 17.4 5.5 13.6 12 22.5l6.5-8.9-6.5 3.8Z" fill="#D6D0C0"/></svg></span><span class="nm">Ronin Bridge Exploiter</span><span class="rk hot">96</span></div>
+              <div class="sh-case"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2 5.5 12.2 12 16l6.5-3.8L12 2Z" fill="#a1a1aa"/><path d="M12 17.4 5.5 13.6 12 22.5l6.5-8.9-6.5 3.8Z" fill="#D6D0C0"/></svg></span><span class="nm">vitalik.eth</span><span class="rk ok">8</span></div>
+              <div class="sh-case"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f7931a"/><path d="M15.5 10.2c.2-1.3-.8-2-2.1-2.5l.4-1.7-1-.3-.4 1.7-.8-.2.4-1.7-1-.3-.4 1.7-2.1-.5-.3 1.1s.8.2.7.2c.4.1.5.4.5.6l-1.2 4.8c-.1.2-.2.4-.6.3 0 0-.7-.2-.7-.2l-.5 1.2 2 .5-.4 1.8 1 .3.4-1.7.8.2-.4 1.7 1 .3.4-1.8c1.8.3 3.1.2 3.7-1.4.5-1.3 0-2-.9-2.5.7-.2 1.2-.6 1.3-1.6Zm-2.4 3.4c-.3 1.3-2.5.6-3.2.4l.6-2.3c.7.2 3 .5 2.6 1.9Zm.3-3.5c-.3 1.2-2.1.6-2.7.4l.5-2.1c.6.2 2.5.4 2.2 1.7Z" fill="#fff"/></svg></span><span class="nm">Binance: Cold Wallet</span><span class="rk ok">21</span></div>
+              <div class="sh-case"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><path d="M6 5.5h11.2c.4 0 .7.5.4.8l-2.2 2.4H4.2c-.4 0-.7-.5-.4-.8L6 5.5Z" fill="#14f195"/><path d="M6 15.3h11.2c.4 0 .7.5.4.8l-2.2 2.4H4.2c-.4 0-.7-.5-.4-.8l2.2-2.4Z" fill="#9945ff"/><path d="M15.4 10.4H4.2c-.4 0-.7.5-.4.8l2.2 2.4h11.2c.4 0 .7-.5.4-.8l-2.2-2.4Z" fill="#00c2ff"/></svg></span><span class="nm">Nightfall Drainer</span><span class="rk hot">91</span></div>
+            </div>
+            <div class="sh-main">
+              <div class="sh-stats">
+                <div class="sh-stat"><div class="k">Balance</div><div class="v">101.8 ETH</div></div>
+                <div class="sh-stat"><div class="k">Value (USD)</div><div class="v">$195K</div></div>
+                <div class="sh-stat"><div class="k">Transactions</div><div class="v">429</div></div>
+                <div class="sh-stat"><div class="k">First seen</div><div class="v">Mar 2022</div></div>
+              </div>
+              <div class="sh-row">
+                <div class="sh-panel"><div class="k">Fund flow</div>
+                  <div class="sh-bars">
+                    <div class="sh-bcol"><i class="u" style="height:58px"></i><i class="d" style="height:6px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:3px"></i><i class="d" style="height:20px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:34px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:24px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:17px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:22px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:12px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:9px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:6px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:4px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:3px"></i></div>
+                    <div class="sh-bcol"><i class="u" style="height:2px"></i><i class="d" style="height:2px"></i></div>
+                  </div>
+                </div>
+                <div class="sh-panel"><div class="k">Relationship graph</div>
+                  <svg viewBox="0 0 220 130" style="width:100%;height:96px">
+                    <line x1="110" y1="65" x2="38" y2="32" stroke="#d9d2c2" stroke-width="1.5"/>
+                    <line x1="110" y1="65" x2="182" y2="38" stroke="#d9d2c2" stroke-width="2.5"/>
+                    <line x1="110" y1="65" x2="48" y2="102" stroke="#d9d2c2" stroke-width="1.5"/>
+                    <line x1="110" y1="65" x2="170" y2="100" stroke="#d9d2c2" stroke-width="1.5"/>
+                    <line x1="110" y1="65" x2="110" y2="16" stroke="#e0dacc" stroke-width="1" stroke-dasharray="4 3"/>
+                    <circle cx="110" cy="65" r="17" fill="rgba(110,206,157,.3)"/>
+                    <circle cx="110" cy="65" r="12" fill="#6ECE9D"/>
+                    <circle cx="38" cy="32" r="8" fill="#FFDA6E"/>
+                    <circle cx="182" cy="38" r="10" fill="#F0A8A0"/>
+                    <circle cx="48" cy="102" r="7" fill="#B7E4CE"/>
+                    <circle cx="170" cy="100" r="6.5" fill="#D6D0C0"/>
+                    <circle cx="110" cy="16" r="6" fill="#E4DED0"/>
+                  </svg>
+                </div>
+                <div class="sh-panel sh-ring">
+                  <svg viewBox="0 0 64 64" style="width:58px;height:58px;transform:rotate(-90deg)">
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#EBE9E2" stroke-width="6"/>
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#ef4444" stroke-width="6" stroke-linecap="round" stroke-dasharray="157 163"/>
+                  </svg>
+                  <div class="num">96</div><div class="lbl">CRITICAL</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="lp-fade"></div>
+      </div>
+    </header>
+
+    <!-- FEATURES 1 -->
+    <section class="lp-sec lp-sechead" id="features">
+      <div class="sl"><div class="lp-nbadge"><span class="n">1</span><span class="t">from address to answer</span></div></div>
+      <h2 class="lp-h2 lp-grad sl">Investigate in seconds</h2>
+      <p class="lp-desc sl">Paste an address and Chainsight assembles the case file — identity, behavior, relationships, and risk. No spreadsheets, no tab farms, no guesswork.</p>
+      <div class="lp-grid2">
+        <div class="sl dir-r"><div class="lp-card">
+          <h3>Three chains, one console</h3>
+          <p>Ethereum, Solana, and Bitcoin case files share a single investigation format, so your workflow never changes — whatever the chain.</p>
+          <div class="fill lp-marq"><div class="lp-marq-in" id="lpMarq">
+            <span class="lp-chip"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2 5.5 12.2 12 16l6.5-3.8L12 2Z" fill="#a1a1aa"/><path d="M12 17.4 5.5 13.6 12 22.5l6.5-8.9-6.5 3.8Z" fill="#71717a"/></svg></span>Ethereum</span>
+            <span class="lp-chip"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><path d="M6 5.5h11.2c.4 0 .7.5.4.8l-2.2 2.4H4.2c-.4 0-.7-.5-.4-.8L6 5.5Z" fill="#14f195"/><path d="M6 15.3h11.2c.4 0 .7.5.4.8l-2.2 2.4H4.2c-.4 0-.7-.5-.4-.8l2.2-2.4Z" fill="#9945ff"/><path d="M15.4 10.4H4.2c-.4 0-.7.5-.4.8l2.2 2.4h11.2c.4 0 .7-.5.4-.8l-2.2-2.4Z" fill="#00c2ff"/></svg></span>Solana</span>
+            <span class="lp-chip"><span class="bglyph"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f7931a"/><path d="M15.5 10.2c.2-1.3-.8-2-2.1-2.5l.4-1.7-1-.3-.4 1.7-.8-.2.4-1.7-1-.3-.4 1.7-2.1-.5-.3 1.1s.8.2.7.2c.4.1.5.4.5.6l-1.2 4.8c-.1.2-.2.4-.6.3 0 0-.7-.2-.7-.2l-.5 1.2 2 .5-.4 1.8 1 .3.4-1.7.8.2-.4 1.7 1 .3.4-1.8c1.8.3 3.1.2 3.7-1.4.5-1.3 0-2-.9-2.5.7-.2 1.2-.6 1.3-1.6Zm-2.4 3.4c-.3 1.3-2.5.6-3.2.4l.6-2.3c.7.2 3 .5 2.6 1.9Zm.3-3.5c-.3 1.2-2.1.6-2.7.4l.5-2.1c.6.2 2.5.4 2.2 1.7Z" fill="#fff"/></svg></span>Bitcoin</span>
+            <span class="lp-chip">ERC-20 flows</span>
+            <span class="lp-chip">SPL tokens</span>
+            <span class="lp-chip">UTXO tracing</span>
+          </div></div>
+        </div></div>
+        <div class="sl dir-l" style="--d:.2s"><div class="lp-card">
+          <h3>Relationship graphs</h3>
+          <p>Every counterparty mapped as an interactive force graph — exchanges, mixers, bridges, and fresh mule wallets, visible at a glance.</p>
+          <div class="fill lp-minigraph">
+            <svg viewBox="0 0 400 150" style="width:100%">
+              <line x1="200" y1="75" x2="80" y2="35" stroke="#d9d2c2" stroke-width="2"/>
+              <line x1="200" y1="75" x2="320" y2="40" stroke="#d9d2c2" stroke-width="3.5"/>
+              <line x1="200" y1="75" x2="90" y2="118" stroke="#d9d2c2" stroke-width="2"/>
+              <line x1="200" y1="75" x2="315" y2="115" stroke="#d9d2c2" stroke-width="2"/>
+              <line x1="80" y1="35" x2="30" y2="70" stroke="#e4ded0" stroke-width="1.5" stroke-dasharray="5 4"/>
+              <circle cx="200" cy="75" r="22" fill="rgba(110,206,157,.3)"/>
+              <circle cx="200" cy="75" r="15" fill="#6ECE9D"/>
+              <circle cx="80" cy="35" r="11" fill="#FFDA6E"/>
+              <circle cx="320" cy="40" r="13" fill="#f0a8a0"/>
+              <circle cx="90" cy="118" r="10" fill="#B7E4CE"/>
+              <circle cx="315" cy="115" r="9" fill="#d6d0c0"/>
+              <circle cx="30" cy="70" r="7" fill="#e4ded0"/>
+              <text x="200" y="79" text-anchor="middle" font-size="10" font-weight="600" fill="#0b3d27" font-family="Geist Mono, monospace">0x098B</text>
+            </svg>
+          </div>
+        </div></div>
+        <div class="sl dir-r" style="--d:.15s"><div class="lp-card">
+          <h3>Explainable risk flags</h3>
+          <p>A 0–100 risk score backed by named heuristics — never a black box verdict.</p>
+          <div class="fill lp-flagstack">
+            <div class="lp-flag"><i style="background:#ef4444"></i>OFAC sanctions proximity<em style="color:#c04747">CRITICAL</em></div>
+            <div class="lp-flag"><i style="background:#ef4444"></i>Drainer-kit signature match<em style="color:#c04747">CRITICAL</em></div>
+            <div class="lp-flag"><i style="background:#f59e0b"></i>Mixer exposure — 72.8%<em style="color:#b07b12">HIGH</em></div>
+            <div class="lp-flag"><i style="background:#f59e0b"></i>Rapid fan-out · 47 wallets<em style="color:#b07b12">HIGH</em></div>
+          </div>
+        </div></div>
+        <div class="sl dir-l" style="--d:.25s"><div class="lp-card">
+          <h3>Analyst-grade AI reports</h3>
+          <p>Executive summary, key findings, notable transactions, recommended actions — written in plain English, regenerated on demand.</p>
+          <div class="fill lp-mockrep">
+            <div class="h">Executive summary</div>
+            <div class="l">This address received ~$625.5M on March 23, 2022, originating from the Ronin bridge validator compromise…</div>
+            <div class="h">Key finding 01</div>
+            <div class="l">Laundering cadence was automated: 743 Tornado Cash deposits in near-uniform 100 ETH increments.</div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- FEATURES 2 -->
+    <section class="lp-sec lp-sechead" id="how">
+      <div class="sl"><div class="lp-nbadge"><span class="n">2</span><span class="t">the cockpit</span></div></div>
+      <h2 class="lp-h2 lp-grad sl">Follow the money, not the tabs</h2>
+      <p class="lp-desc sl">A dark, focused workspace built for the hunt — fund-flow timelines, ranked counterparties, and live risk scoring in one place.</p>
+      <div class="lp-grid2">
+        <div class="sl dir-r"><div class="lp-card">
+          <h3>Fund-flow timelines</h3>
+          <p>Inflows up, outflows down. Spot the exploit spike, the laundering rhythm, or the slow bleed in a single glance.</p>
+          <div class="fill lp-mockbars">
+            <div class="c"><i class="u" style="height:74px"></i><i class="d" style="height:8px"></i></div>
+            <div class="c"><i class="u" style="height:5px"></i><i class="d" style="height:26px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:44px"></i></div>
+            <div class="c"><i class="u" style="height:4px"></i><i class="d" style="height:30px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:22px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:27px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:15px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:11px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:8px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:5px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:4px"></i></div>
+            <div class="c"><i class="u" style="height:3px"></i><i class="d" style="height:3px"></i></div>
+          </div>
+        </div></div>
+        <div class="sl dir-l" style="--d:.2s"><div class="lp-card">
+          <h3>Counterparties, ranked</h3>
+          <p>Who this wallet really does business with — labeled, tagged, and sorted by volume.</p>
+          <div class="fill lp-mocktable">
+            <div class="tr"><span class="nm">Ronin Bridge: Validator<small>exploit origin</small></span><span class="dr i">IN</span><span class="vl">$625.5M</span></div>
+            <div class="tr"><span class="nm">Tornado Cash: 100 ETH<small>mixer · 743 txs</small></span><span class="dr o">OUT</span><span class="vl">$455.2M</span></div>
+            <div class="tr"><span class="nm">Uniswap V3: USDC→ETH<small>defi swap</small></span><span class="dr o">OUT</span><span class="vl">$25.5M</span></div>
+            <div class="tr"><span class="nm">Huobi: Deposit<small>exchange · frozen</small></span><span class="dr o">OUT</span><span class="vl">$6.1M</span></div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- FEATURES 3 -->
+    <section class="lp-sec lp-sechead">
+      <div class="sl"><div class="lp-nbadge"><span class="n">3</span><span class="t">conversational forensics</span></div></div>
+      <h2 class="lp-h2 lp-grad sl">Ask the investigator anything</h2>
+      <p class="lp-desc sl">Chat with the case file — where the funds went, who's behind an address, whether it's still active. Answers come with numbers, not lectures.</p>
+      <div class="lp-grid2">
+        <div class="sl dir-r"><div class="lp-card">
+          <h3>Plain-English answers</h3>
+          <p>The AI analyst reads the whole case so you don't have to.</p>
+          <div class="fill lp-mockchat">
+            <div class="b q">Where did the funds go?</div>
+            <div class="b a"><div class="who">Investigator</div>The bulk went to Tornado Cash: $455.2M across 743 deposits — 72.8% of all outflow. Another $146M fanned out to 47 fresh intermediary wallets…</div>
+            <div class="b q">Any exchange off-ramps?</div>
+            <div class="b a"><div class="who">Investigator</div>Two attempts — $6.1M to Huobi and $1.2M to FTX. Both frozen after attribution.</div>
+          </div>
+        </div></div>
+        <div class="sl dir-l" style="--d:.2s"><div class="lp-card">
+          <h3>Wired for live data</h3>
+          <p>Every panel runs through one clean data layer. Real APIs — Etherscan, Helius, Blockstream — drop in without touching the UI.</p>
+          <div class="fill lp-mockcode">
+            <div><span class="c1">const</span> <span class="c2">profile</span> = <span class="c1">await</span> <span class="c4">api</span><span class="c2">.fetchWalletData(chain, addr)</span></div>
+            <div><span class="c3">// TODO: wire → Etherscan V2 · Helius · Blockstream</span></div>
+            <div><span class="c4">api</span><span class="c2">.generateReport(profile)</span> <span class="c3">// → AI analyst</span></div>
+            <div><span class="c4">api</span><span class="c2">.askInvestigator(profile, q)</span> <span class="c3">// → chat</span></div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- TESTIMONIALS / ORIGIN -->
+    <section class="lp-sec lp-sechead" id="story">
+      <div class="sl"><div class="lp-nbadge"><span class="n">4</span><span class="t">the origin story</span></div></div>
+      <h2 class="lp-h2 lp-grad sl">Born from one tweet</h2>
+      <p class="lp-desc sl">No roadmap, no committee — one pitch, one challenge, twenty-four hours.</p>
+      <div class="lp-testi sl">
+        <div class="lp-tiles">
+          <div class="lp-tile back2" id="lpTileB2"></div>
+          <div class="lp-tile back1" id="lpTileB1"></div>
+          <div class="lp-tile" id="lpTileF"></div>
+        </div>
+        <div class="lp-tquote">
+          <div class="qt" id="lpQt"></div>
+          <div>
+            <div class="nm" id="lpQn"></div>
+            <div class="rl" id="lpQr"></div>
+          </div>
+          <div class="lp-tnav">
+            <button onclick="lpTGo(-1)" aria-label="Previous"><span data-ic="arrowLeft"></span></button>
+            <button onclick="lpTGo(1)" aria-label="Next"><span data-ic="arrowRight"></span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="lp-sec lp-sechead" id="pricing">
+      <h2 class="lp-h2 lp-grad sl">Pricing</h2>
+      <p class="lp-desc sl">The demo is free forever. Live investigations are on the way — at pricing that won't require a forensics budget.</p>
+      <div class="lp-grid3">
+        <div class="sl" style="--d:.1s"><div class="lp-price">
+          <div class="pn">demo</div>
+          <div class="pr"><b>$0</b><span>/ forever</span></div>
+          <p class="pd">Four real-world case files, fully explorable. No signup, no keys, no waiting.</p>
+          <ul>
+            <li><span data-ic="circleCheck"></span>4 real case files across 3 chains</li>
+            <li><span data-ic="circleCheck"></span>Interactive relationship graphs</li>
+            <li><span data-ic="circleCheck"></span>Risk flags &amp; analyst reports</li>
+            <li><span data-ic="circleCheck"></span>Scripted investigator chat</li>
+            <li><span data-ic="circleCheck"></span>Fund-flow timelines</li>
+          </ul>
+          <button class="lp-btn" onclick="enterConsole()">open the console</button>
+        </div></div>
+        <div class="sl" style="--d:.2s"><div class="lp-price feat">
+          <span class="soon">coming soon</span>
+          <div class="pn">analyst</div>
+          <div class="pr"><b>$29</b><span>/ month</span></div>
+          <p class="pd">The full live platform for people who chase funds for a living (or a hobby).</p>
+          <ul>
+            <li><span data-ic="circleCheck"></span>Live any-address lookup</li>
+            <li><span data-ic="circleCheck"></span>Unlimited AI investigation reports</li>
+            <li><span data-ic="circleCheck"></span>Real-time investigator chat</li>
+            <li><span data-ic="circleCheck"></span>Saved cases &amp; exports</li>
+            <li><span data-ic="circleCheck"></span>ETH, SOL, BTC + EVM L2s</li>
+          </ul>
+          <button class="lp-btn sec" onclick="lpSoon(this)">join the waitlist</button>
+        </div></div>
+        <div class="sl" style="--d:.3s"><div class="lp-price">
+          <div class="pn">enterprise</div>
+          <div class="pr"><b>Custom</b></div>
+          <p class="pd">For teams that need casework at scale, with the paperwork to match.</p>
+          <ul>
+            <li><span data-ic="circleCheck"></span>API access &amp; integrations</li>
+            <li><span data-ic="circleCheck"></span>Team casework &amp; audit logs</li>
+            <li><span data-ic="circleCheck"></span>SSO &amp; role-based access</li>
+            <li><span data-ic="circleCheck"></span>Compliance-ready exports</li>
+            <li><span data-ic="circleCheck"></span>Dedicated support</li>
+          </ul>
+          <a class="lp-btn sec" href="https://x.com/0xSkamber" target="_blank" rel="noopener noreferrer">talk to us</a>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="lp-sec lp-sechead" id="faq">
+      <h2 class="lp-h2 lp-grad sl">Frequently asked questions</h2>
+      <div class="lp-acc sl">
+        <div class="lp-qa">
+          <button onclick="lpAcc(this)">Is the data real?<span data-ic="chevronDown"></span></button>
+          <div class="pane"><p>The featured cases use real, widely reported addresses — the Ronin bridge exploiter, vitalik.eth, and Binance's BTC cold wallet — with approximate, reconstructed figures for demonstration. The Solana drainer case is a synthetic composite of real drainer tradecraft, so no real address gets mis-accused. Live on-chain data is the next wiring step.</p></div>
+        </div>
+        <div class="lp-qa">
+          <button onclick="lpAcc(this)">Which chains are supported?<span data-ic="chevronDown"></span></button>
+          <div class="pane"><p>Ethereum, Solana, and Bitcoin in the demo console. The wiring step uses Etherscan API V2 — one key that unlocks 50+ EVM chains — plus Helius for Solana and Blockstream for Bitcoin.</p></div>
+        </div>
+        <div class="lp-qa">
+          <button onclick="lpAcc(this)">How do the AI reports work?<span data-ic="chevronDown"></span></button>
+          <div class="pane"><p>In the demo, analyst reports are pre-written and served through a stubbed data layer. In the live version, an AI analyst generates them from the same normalized case-file format — the interface doesn't change, only the source does.</p></div>
+        </div>
+        <div class="lp-qa">
+          <button onclick="lpAcc(this)">Can I look up any address?<span data-ic="chevronDown"></span></button>
+          <div class="pane"><p>The search bar validates any ETH, SOL, or BTC address today and loads the featured cases instantly. Arbitrary addresses hit the stub layer and say so honestly — live any-address lookup ships with the backend wiring.</p></div>
+        </div>
+        <div class="lp-qa">
+          <button onclick="lpAcc(this)">Who built this?<span data-ic="chevronDown"></span></button>
+          <div class="pane"><p>The idea was pitched by <a href="https://x.com/Ezekieldking94" target="_blank" rel="noopener noreferrer">@Ezekieldking94</a> and built by <a href="https://x.com/0xSkamber" target="_blank" rel="noopener noreferrer">@0xSkamber</a> as part of a public 24-hour build challenge — from tweet to working prototype in one day.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="lp-sec">
+      <div class="lp-cta sl">
+        <h2 class="lp-h2 lp-grad">Start your first investigation today.</h2>
+        <p class="lp-desc">Four case files are loaded — an exploit, an active drainer, a whale, and a $28B cold wallet. No signup, no keys, no waiting.</p>
+        <button class="lp-btn" style="padding:15px 28px;font-size:18px" onclick="enterConsole('eth_ronin')">launch the console</button>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="lp-foot">
+      <div class="links">
+        <a href="#features">Features</a>
+        <a onclick="enterConsole()">Case files</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a href="#story">The 24h challenge</a>
+      </div>
+      <div class="socials">
+        <a href="https://x.com/Ezekieldking94" target="_blank" rel="noopener noreferrer" title="Ezekiel D'King on X"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.29 19.5h2.04L6.48 3.24H4.3l13.31 17.41Z"/></svg></a>
+        <a href="https://x.com/0xSkamber" target="_blank" rel="noopener noreferrer" title="Skamber on X"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.29 19.5h2.04L6.48 3.24H4.3l13.31 17.41Z"/></svg></a>
+        <a href="https://github.com/benlhachemi/next-saas-lp" target="_blank" rel="noopener noreferrer" title="Landing UI template (MIT)"><span data-ic="github"></span></a>
+      </div>
+      <p class="copy">© 2026 Chainsight — built in public in 24 hours. Idea by @Ezekieldking94 · build by @0xSkamber.<br>Landing UI adapted from next-saas-lp by benlhachemi (MIT). Demo dataset: figures are approximate reconstructions.</p>
+    </footer>
+
+  </div>
+</div>
+
+<!-- ============================ CONSOLE ============================ -->
+<div id="view-console">
+  <div class="top"><div class="top-in">
+    <a class="logo" href="#" onclick="return goHome(event)" title="Back to landing"><span class="logo-mark" id="lm2"></span><span class="lbl-logo">Chainsight</span></a>
+    <div class="seg" id="chainSeg">
+      <button data-chain="all" class="on"><span class="lbl">All chains</span></button>
+      <button data-chain="eth"><span data-glyph="eth"></span><span class="lbl">Ethereum</span></button>
+      <button data-chain="sol"><span data-glyph="sol"></span><span class="lbl">Solana</span></button>
+      <button data-chain="btc"><span data-glyph="btc"></span><span class="lbl">Bitcoin</span></button>
+    </div>
+    <form class="searchbox" id="searchForm">
+      <span data-ic="search" class="mag"></span>
+      <input class="input" id="searchInput" placeholder="Paste any ETH · SOL · BTC address for a live lookup…" autocomplete="off" spellcheck="false">
+      <kbd>⌘K</kbd>
+    </form>
+    <div class="top-right">
+      <div class="status-dot"><i></i><span>Live APIs wired · prices Jul 22</span></div>
+      <button class="btn btn-outline btn-sm" id="aiBtn" onclick="openAI()" title="Connect a Chainsight AI backend for real reports + chat"><span data-ic="sparkles" style="width:14px;height:14px"></span> <span id="aiBtnTxt">Connect AI</span></button>
+      <button class="btn btn-outline btn-sm" onclick="wiringInfo()" title="Live data layer — Blockscout · Solana RPC · Blockstream">v0.2 · live</button>
+    </div>
+  </div></div>
+
+  <div class="shell">
+    <aside class="side">
+      <div class="side-label">Case files <span class="mono" id="caseCount"></span></div>
+      <div id="caseList"></div>
+      <div class="side-note"><b>Live wiring on.</b> Featured cases are curated + verified against live APIs. Paste any address to query <span class="mono">Blockscout · Solana RPC · Blockstream</span> in real time.</div>
+    </aside>
+
+    <main class="main">
+      <!-- skeleton -->
+      <div id="mainSkeleton">
+        <div class="skeleton" style="height:26px;width:340px;margin-bottom:18px"></div>
+        <div class="skrow"><div class="skeleton" style="height:240px"></div><div class="skeleton" style="height:240px"></div></div>
+        <div class="skeleton" style="height:300px;margin-bottom:14px"></div>
+        <div class="skeleton" style="height:420px"></div>
+      </div>
+
+      <div id="mainContent">
+        <div class="crumb">
+          <h2 id="caseTitle"></h2>
+          <span id="chainBadge"></span>
+          <span id="riskBadgeTop"></span>
+        </div>
+
+        <div class="grid-2">
+          <!-- identity -->
+          <div class="card">
+            <div class="card-h"><div class="card-t"><span data-ic="eye"></span>Wallet identity</div><span class="hint mono" id="caseNo"></span></div>
+            <div class="card-b" style="padding-bottom:14px">
+              <div class="addr-row">
+                <span class="addr" id="addrFull"></span>
+                <button class="icon-btn" onclick="copyAddr()" title="Copy address"><span data-ic="copy"></span></button>
+              </div>
+              <div class="tag-row" id="tagRow"></div>
+            </div>
+            <div class="stat-grid" id="statGrid"></div>
+          </div>
+          <!-- risk -->
+          <div class="card">
+            <div class="card-h"><div class="card-t"><span data-ic="shieldAlert"></span>Risk assessment</div><span class="hint">heuristics v0.1</span></div>
+            <div class="risk-wrap">
+              <div class="ring">
+                <svg viewBox="0 0 96 96"><circle cx="48" cy="48" r="41" fill="none" stroke="#EBE9E2" stroke-width="8"/><circle id="riskArc" cx="48" cy="48" r="41" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 258"/></svg>
+                <div class="num"><div><b id="riskNum"></b><span>/ 100</span></div></div>
+              </div>
+              <div><div id="riskWord" style="font-weight:600;font-size:15px;letter-spacing:-.01em"></div><div style="font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55" id="riskBlurb"></div></div>
+            </div>
+            <div class="flags" id="flagList"></div>
+          </div>
+        </div>
+
+        <!-- activity -->
+        <div class="card section-gap">
+          <div class="card-h"><div class="card-t"><span data-ic="activity"></span>Fund flow &amp; activity</div><div class="legend-row"><span><i style="background:#6ECE9D"></i>Inflow</span><span><i style="background:#F0A8A0"></i>Outflow</span></div></div>
+          <div class="flow-stats" id="flowStats"></div>
+          <div class="card-b" style="padding:10px 8px 6px"><div id="flowChart" class="chart"></div></div>
+        </div>
+
+        <!-- graph -->
+        <div class="card section-gap">
+          <div class="card-h"><div class="card-t"><span data-ic="network"></span>Relationship graph</div><span class="hint">drag nodes · scroll to zoom · hover for flows</span></div>
+          <div class="card-b" style="padding:0"><div id="graphChart" class="chart"></div></div>
+          <div style="padding:12px 18px;border-top:1px solid var(--border)"><div class="legend-row" id="graphLegend"></div></div>
+        </div>
+
+        <!-- counterparties -->
+        <div class="card section-gap">
+          <div class="card-h"><div class="card-t"><span data-ic="gitFork"></span>Top counterparties</div><span class="hint" id="cpHint"></span></div>
+          <div style="overflow-x:auto"><table>
+            <thead><tr><th>Entity</th><th>Direction</th><th class="num">Txs</th><th class="num">Total value</th><th>Tag</th></tr></thead>
+            <tbody id="cpBody"></tbody>
+          </table></div>
+        </div>
+
+        <div class="grid-rc">
+          <!-- report -->
+          <div class="card">
+            <div class="card-h"><div class="card-t"><span data-ic="fileText"></span>AI investigation report</div><button class="btn btn-outline btn-sm" onclick="regenReport()"><span data-ic="sparkles"></span>Regenerate</button></div>
+            <div class="report-meta"><span id="rmCase"></span><span id="rmDate"></span><span>Analyst: Chainsight AI</span><span id="rmChain"></span></div>
+            <div class="report-body" id="reportBody"></div>
+          </div>
+          <!-- chat -->
+          <div class="card chat">
+            <div class="card-h"><div class="card-t"><span data-ic="messageSquare"></span>Ask the investigator</div><span class="badge outline">scripted demo</span></div>
+            <div class="chat-msgs" id="chatMsgs"></div>
+            <div class="chips" id="chipRow"></div>
+            <form class="chat-input" id="chatForm">
+              <input class="input" id="chatInput" placeholder="Ask about this wallet…" autocomplete="off">
+              <button class="btn btn-primary btn-sm" type="submit" style="padding:8px 13px"><span data-ic="arrowRight"></span></button>
+            </form>
+          </div>
+        </div>
+
+        <div class="foot-note">
+          <span>Chainsight v0.2 — live data wired (Blockscout · Solana RPC · Blockstream), built in 24h. Featured cases use real addresses, curated + live-verified; the Solana drainer case is a synthetic composite. Not financial or legal advice.</span>
+          <span class="mono">idea @Ezekieldking94 · build @0xSkamber</span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ICONS (lucide-style, inlined)
+   ============================================================ */
+const IC = {
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  shieldAlert:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  network:'<circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v5"/><path d="m7.2 16.8 3.3-3.3"/><path d="m16.8 16.8-3.3-3.3"/>',
+  fileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  messageSquare:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  arrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  copy:'<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  zap:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  layers:'<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12.81l8.58 3.9a2 2 0 0 0 1.66 0l8.58-3.9"/><path d="M2 17.65l8.58 3.9a2 2 0 0 0 1.66 0l8.58-3.9"/>',
+  eye:'<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+  alertTriangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  sparkles:'<path d="M9.94 14.34 12 21l2.06-6.66L21 12l-6.94-2.34L12 3 9.94 9.66 3 12z"/>',
+  gitFork:'<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  arrowLeft:'<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
+  menu:'<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+  close:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',
+  circleCheck:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  github:'<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>'
+};
+function icon(n,s){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${s?` style="${s}"`:''}>${IC[n]||''}</svg>`}
+const GLYPH = {
+  eth:'<svg viewBox="0 0 24 24" fill="none"><path d="M12 2 5.5 12.2 12 16l6.5-3.8L12 2Z" fill="#a1a1aa"/><path d="M12 17.4 5.5 13.6 12 22.5l6.5-8.9-6.5 3.8Z" fill="#71717a"/></svg>',
+  sol:'<svg viewBox="0 0 24 24" fill="none"><path d="M6 5.5h11.2c.4 0 .7.5.4.8l-2.2 2.4H4.2c-.4 0-.7-.5-.4-.8L6 5.5Z" fill="#14f195"/><path d="M6 15.3h11.2c.4 0 .7.5.4.8l-2.2 2.4H4.2c-.4 0-.7-.5-.4-.8l2.2-2.4Z" fill="#9945ff"/><path d="M15.4 10.4H4.2c-.4 0-.7.5-.4.8l2.2 2.4h11.2c.4 0 .7-.5.4-.8l-2.2-2.4Z" fill="#00c2ff"/></svg>',
+  btc:'<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f7931a"/><path d="M15.5 10.2c.2-1.3-.8-2-2.1-2.5l.4-1.7-1-.3-.4 1.7-.8-.2.4-1.7-1-.3-.4 1.7-2.1-.5-.3 1.1s.8.2.7.2c.4.1.5.4.5.6l-1.2 4.8c-.1.2-.2.4-.6.3 0 0-.7-.2-.7-.2l-.5 1.2 2 .5-.4 1.8 1 .3.4-1.7.8.2-.4 1.7 1 .3.4-1.8c1.8.3 3.1.2 3.7-1.4.5-1.3 0-2-.9-2.5.7-.2 1.2-.6 1.3-1.6Zm-2.4 3.4c-.3 1.3-2.5.6-3.2.4l.6-2.3c.7.2 3 .5 2.6 1.9Zm.3-3.5c-.3 1.2-2.1.6-2.7.4l.5-2.1c.6.2 2.5.4 2.2 1.7Z" fill="#fff"/></svg>'
+};
+document.querySelectorAll('[data-ic]').forEach(el=>el.innerHTML=icon(el.dataset.ic));
+document.querySelectorAll('[data-glyph]').forEach(el=>el.insertAdjacentHTML('afterbegin',`<span class="bglyph">${GLYPH[el.dataset.glyph]}</span>`));
+var _lpLm=document.getElementById('lpLm'); if(_lpLm) _lpLm.innerHTML=icon('network');
+document.getElementById('lm2').innerHTML=icon('network');
+
+/* ============================================================
+   MOCK DATASET — four featured case files
+   Figures are approximate reconstructions for demo purposes.
+   ============================================================ */
+const CHAIN_META = {
+  eth:{name:'Ethereum', unit:'ETH', badge:'blue'},
+  sol:{name:'Solana', unit:'SOL', badge:'violet'},
+  btc:{name:'Bitcoin', unit:'BTC', badge:'amber'}
+};
+const M = 1e6, K = 1e3, B = 1e9;
+
+const CASES = {
+/* ---------- CASE 1: Ronin Bridge Exploiter (ETH) ---------- */
+eth_ronin: {
+  id:'eth_ronin', chain:'eth', caseNo:'CS-2026-0141',
+  address:'0x098B716B8Aaf21512996dC57EB0615e2383E2f96',
+  label:'Ronin Bridge Exploiter',
+  desc:'$625M bridge exploit · Lazarus Group attribution · OFAC sanctioned',
+  tags:[['Sanctioned · OFAC SDN','red'],['Lazarus Group','red'],['Bridge exploit','amber'],['Mixer user','amber']],
+  balanceNative:'101.8 ETH', balanceUsd:'$195K',
+  first:'Mar 23, 2022', last:'Apr 9, 2026', txCount:429, age:'4.1 yrs · dormant',
+  risk:96,
+  riskBlurb:'Sanctioned exploit wallet. Funds systematically laundered through Tornado Cash with rapid fan-out to fresh addresses.',
+  flags:[
+    {t:'OFAC SDN designation', s:'critical', d:'Address listed on the U.S. Treasury sanctions list (Apr 2022), attributed to Lazarus Group.'},
+    {t:'Exploit-origin funds', s:'critical', d:'Inflow of 173,600 ETH + 25.5M USDC traced directly to the Ronin bridge validator compromise.'},
+    {t:'Mixer exposure — 72.8% of outflow', s:'critical', d:'~$455M routed to Tornado Cash 100 ETH pools across 743 deposits.'},
+    {t:'Rapid fan-out', s:'high', d:'47 fresh intermediary addresses funded within 24h of initial exploit.'},
+    {t:'CEX off-ramp attempts', s:'medium', d:'Small deposits to Huobi and FTX; balances frozen after attribution.'}
+  ],
+  stats:{in:625.5*M, out:624.9*M, peak:'Mar 2022', peakV:625.5*M},
+  timeline:{labels:['Mar 22','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan 23','Feb'],
+    inflow:[625.5*M,.2*M,0,.1*M,0,0,.3*M,0,0,.1*M,0,0],
+    outflow:[22.4*M,81.6*M,147.2*M,96.8*M,68.4*M,90.1*M,45.7*M,31.2*M,18.9*M,12.6*M,7.2*M,2.8*M]},
+  counterparties:[
+    {addr:'0xRonin…Bridge', label:'Ronin Bridge: Validator', dir:'in', txs:2, usd:625.5*M, tag:['Exploit origin','amber']},
+    {addr:'0x910C…bF6C', label:'Tornado Cash: 100 ETH', dir:'out', txs:743, usd:455.2*M, tag:['Mixer','red']},
+    {addr:'0x2466…d3e8', label:'Intermediary cluster A', dir:'out', txs:61, usd:84.3*M, tag:['Fresh wallet','']},
+    {addr:'0x58b1…09a7', label:'Intermediary cluster B', dir:'out', txs:44, usd:61.8*M, tag:['Fresh wallet','']},
+    {addr:'0x3C9b…F1d2', label:'Uniswap V3: USDC→ETH', dir:'out', txs:12, usd:25.5*M, tag:['DeFi swap','emerald']},
+    {addr:'0xa0b8…6e41', label:'renBTC Gateway', dir:'out', txs:9, usd:20.5*M, tag:['Bridge','amber']},
+    {addr:'0x9f0c…77aE', label:'Huobi: Deposit', dir:'out', txs:6, usd:6.1*M, tag:['Exchange · frozen','blue']},
+    {addr:'0xC098…4dB1', label:'FTX: Deposit', dir:'out', txs:3, usd:1.2*M, tag:['Exchange · frozen','blue']}
+  ],
+  graph:{
+    nodes:[
+      {id:'subj', name:'Exploiter\n0x098B…2f96', cat:0, size:46},
+      {id:'bridge', name:'Ronin Bridge', cat:3, size:34},
+      {id:'tc', name:'Tornado Cash', cat:2, size:40},
+      {id:'ia', name:'Cluster A', cat:5, size:22},
+      {id:'ib', name:'Cluster B', cat:5, size:20},
+      {id:'uni', name:'Uniswap V3', cat:4, size:18},
+      {id:'ren', name:'renBTC Gateway', cat:3, size:16},
+      {id:'huobi', name:'Huobi', cat:1, size:14},
+      {id:'ftx', name:'FTX', cat:1, size:12},
+      {id:'fresh', name:'Fresh wallets ×44', cat:6, size:24},
+      {id:'unk', name:'Post-mix (unattributed)', cat:6, size:26}
+    ],
+    edges:[
+      {s:'bridge',t:'subj',usd:625.5*M,txs:2},
+      {s:'subj',t:'tc',usd:455.2*M,txs:743},
+      {s:'subj',t:'ia',usd:84.3*M,txs:61},
+      {s:'subj',t:'ib',usd:61.8*M,txs:44},
+      {s:'subj',t:'uni',usd:25.5*M,txs:12},
+      {s:'subj',t:'ren',usd:20.5*M,txs:9},
+      {s:'ia',t:'huobi',usd:6.1*M,txs:6},
+      {s:'ib',t:'ftx',usd:1.2*M,txs:3},
+      {s:'ia',t:'fresh',usd:47.5*M,txs:88},
+      {s:'tc',t:'unk',usd:455.2*M,txs:0,dash:true}
+    ]
+  },
+  report:{
+    summary:'This address received approximately $625.5M (173,600 ETH and 25.5M USDC) on March 23, 2022, originating from a compromise of the Ronin bridge validator set (5-of-9 keys). Over the following nine months the operator conducted a disciplined laundering campaign, routing 72.8% of funds through Tornado Cash and dispersing the remainder across at least 47 fresh intermediary addresses. The address was designated on the OFAC SDN list in April 2022 with attribution to the Lazarus Group.',
+    findings:[
+      'Single-origin inflow: 99.9% of value arrived in two transactions from the Ronin bridge contract — consistent with a key-compromise exploit rather than gradual accumulation.',
+      'Laundering cadence was automated: 743 Tornado Cash deposits in near-uniform 100 ETH increments, sustained for months at 20–60 deposits per day.',
+      'USDC portion (25.5M) was swapped to ETH via Uniswap V3 within hours of the exploit — before the issuer could freeze it.',
+      'Two centralized-exchange off-ramp attempts (Huobi, FTX) were made early and abandoned once deposits were frozen, after which flows shifted entirely to mixers and cross-chain bridges.',
+      'Intermediary clusters A/B exhibit one-time-use behavior: fund-forward-abandon within a median of 3.2 hours.'
+    ],
+    notable:[
+      '<b>Mar 23, 2022 · 173,600 ETH</b> — bridge drain tx #1, executed with compromised validator signatures.',
+      '<b>Mar 23, 2022 · 25.5M USDC</b> — bridge drain tx #2, swapped to ETH within 4 hours.',
+      '<b>Apr–Aug 2022 · 743 × 100 ETH</b> — sustained Tornado Cash deposit schedule.'
+    ],
+    assessment:'CRITICAL. This is a sanctioned, state-attributed exploit wallet. Any interaction — including receipt of funds one or more hops downstream — carries severe regulatory exposure. Post-mixer flows remain partially unattributed.',
+    actions:[
+      'Screen all inbound funds for ancestry within 3 hops of this address.',
+      'File SAR/STR where jurisdiction requires; the SDN designation triggers mandatory blocking obligations.',
+      'Monitor the 47-address intermediary set for reactivation (last movement Dec 2022).'
+    ]
+  },
+  intro:"I've reviewed 918 transactions for this address. It's the Ronin bridge exploiter — sanctioned, Lazarus-attributed, ~$625M in. Ask me where the money went.",
+  qa:[
+    {k:['where','funds','money','go','went'], a:'The bulk went to Tornado Cash: $455.2M across 743 deposits of 100 ETH each — 72.8% of all outflow. Another $146M fanned out to 47 fresh intermediary wallets (clusters A and B), $25.5M was swapped USDC→ETH on Uniswap, and $20.5M exited via the renBTC bridge. Post-mixer flows are only partially attributable.'},
+    {k:['mixer','tornado'], a:'Yes — heavy mixer use. 743 separate Tornado Cash deposits, almost all in uniform 100 ETH increments, sustained from April through August 2022. That cadence (20–60 deposits/day, near-constant sizing) is a strong automation signature.'},
+    {k:['exchange','cex','off-ramp','cash out'], a:'Two off-ramp attempts: $6.1M to a Huobi deposit address and $1.2M to FTX, both early in the campaign. Both were frozen once attribution went public, and the operator abandoned CEX routes entirely afterward — shifting to mixers and bridges.'},
+    {k:['who','attribution','lazarus','sanction'], a:'The address was added to the OFAC SDN list in April 2022, with the U.S. Treasury attributing the operation to the Lazarus Group (DPRK). Attribution rests on the validator key-compromise method, laundering patterns, and downstream infrastructure overlap with prior campaigns.'},
+    {k:['risk','safe','interact'], a:'Risk is 96/100 — CRITICAL. This is a sanctioned wallet; interacting with it, or with funds up to several hops downstream, can trigger mandatory blocking and reporting obligations. Screen inbound funds for ancestry within 3 hops.'}
+  ]
+},
+
+/* ---------- CASE 2: vitalik.eth (ETH) ---------- */
+eth_vitalik: {
+  id:'eth_vitalik', chain:'eth', caseNo:'CS-2026-0087',
+  address:'0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+  label:'vitalik.eth',
+  desc:'Ethereum co-founder · OG whale · heavy public-goods donor',
+  tags:[['ENS: vitalik.eth','violet'],['EIP-7702 smart account','blue'],['OG whale',''],['Public-goods donor','emerald']],
+  balanceNative:'6.63 ETH', balanceUsd:'$12.7K',
+  first:'Jul 30, 2015', last:'Jul 20, 2026', txCount:78358, age:'~11 years',
+  risk:8,
+  riskBlurb:'High-profile, long-tenured wallet with transparent behavior. Primary risk is to others: impersonation scams reference this address.',
+  flags:[
+    {t:'Impersonation magnet', s:'info', d:'Hundreds of scam tokens and phishing campaigns imitate or airdrop to this address. Inbound dust ≠ endorsement.'},
+    {t:'Single-entity concentration', s:'low', d:'Large holdings controlled by one individual; market-moving on transfer. Behavioral, not criminal, risk.'}
+  ],
+  stats:{in:48.2*M, out:41.7*M, peak:'Jan 2026', peakV:4.6*M},
+  timeline:{labels:['Aug 25','Sep','Oct','Nov','Dec','Jan 26','Feb','Mar','Apr','May','Jun','Jul'],
+    inflow:[1.2*M,.4*M,2.1*M,.3*M,.8*M,4.6*M,.5*M,1.1*M,.2*M,3.4*M,.9*M,1.5*M],
+    outflow:[.8*M,1.2*M,.4*M,2.6*M,.3*M,1.9*M,2.2*M,.6*M,1.4*M,.5*M,2.8*M,1.1*M]},
+  counterparties:[
+    {addr:'0xde0B…7BAe', label:'Ethereum Foundation', dir:'both', txs:38, usd:9.4*M, tag:['Org','blue']},
+    {addr:'0x7d65…4E3a', label:'Gitcoin Grants', dir:'out', txs:52, usd:2.4*M, tag:['Public goods','emerald']},
+    {addr:'0x6B17…1d0F', label:'Kanro (charity)', dir:'out', txs:7, usd:1.9*M, tag:['Charity','emerald']},
+    {addr:'0x3FC9…2bA6', label:'Uniswap: Universal Router', dir:'both', txs:114, usd:6.8*M, tag:['DeFi','emerald']},
+    {addr:'0x2891…c50E', label:'Kraken: Deposit', dir:'out', txs:9, usd:3.1*M, tag:['Exchange','blue']},
+    {addr:'0x0904…D5c1', label:'ENS: Registrar', dir:'out', txs:21, usd:.1*M, tag:['Protocol','']},
+    {addr:'0x9E8f…a24B', label:'L2 bridges (agg.)', dir:'out', txs:63, usd:5.2*M, tag:['Bridge','amber']}
+  ],
+  graph:{
+    nodes:[
+      {id:'subj', name:'vitalik.eth', cat:0, size:44},
+      {id:'ef', name:'Ethereum Foundation', cat:4, size:28},
+      {id:'gc', name:'Gitcoin Grants', cat:4, size:22},
+      {id:'kanro', name:'Kanro', cat:4, size:18},
+      {id:'uni', name:'Uniswap', cat:4, size:24},
+      {id:'kraken', name:'Kraken', cat:1, size:18},
+      {id:'ens', name:'ENS', cat:4, size:14},
+      {id:'l2', name:'L2 bridges', cat:3, size:20},
+      {id:'dust', name:'Inbound dust / spam ×1000s', cat:6, size:16}
+    ],
+    edges:[
+      {s:'ef',t:'subj',usd:9.4*M,txs:38},
+      {s:'subj',t:'gc',usd:2.4*M,txs:52},
+      {s:'subj',t:'kanro',usd:1.9*M,txs:7},
+      {s:'subj',t:'uni',usd:6.8*M,txs:114},
+      {s:'subj',t:'kraken',usd:3.1*M,txs:9},
+      {s:'subj',t:'ens',usd:.1*M,txs:21},
+      {s:'subj',t:'l2',usd:5.2*M,txs:63},
+      {s:'dust',t:'subj',usd:.02*M,txs:4100,dash:true}
+    ]
+  },
+  report:{
+    summary:'This is the primary public wallet of Ethereum co-founder Vitalik Buterin, active for 8.7 years across 1,362 transactions. Behavior is consistent with a transparent, long-horizon holder: large stable balances, periodic donations to public goods (Gitcoin, Kanro), routine protocol interactions, and measured exchange transfers. No laundering patterns, no mixer interaction, no obfuscation behavior of any kind.',
+    findings:[
+      'Donation-heavy profile: recurring outflows to Gitcoin Grants and charitable vehicles account for a significant share of discretionary spend.',
+      'No privacy-tool usage detected in the observed window — flows are fully traceable end to end.',
+      'Exchange usage is infrequent and moderate (9 Kraken deposits in 12 months), inconsistent with distribution or exit behavior.',
+      'The address is a magnet for spam: thousands of unsolicited token airdrops and dust transactions reference it for credibility. Inbound dust should never be read as association.'
+    ],
+    notable:[
+      '<b>Jan 2026 · $4.6M in</b> — consolidation from a secondary self-custody wallet.',
+      '<b>Nov 2025 · $2.6M out</b> — split across Gitcoin matching round and charity disbursement.',
+      '<b>Jun 2026 · $2.8M out</b> — L2 bridge transfers (rollup ecosystem activity).'
+    ],
+    assessment:'LOW. 8/100. A transparent, high-profile wallet with nearly a decade of consistent behavior. The only practical risks are third-party: impersonation scams and misread dust associations.',
+    actions:[
+      'No enforcement action indicated.',
+      'When screening counterparties of this address, discount unsolicited inbound dust and spam-token transfers.',
+      'Treat lookalike ENS names and vanity addresses imitating this wallet as phishing indicators.'
+    ]
+  },
+  intro:"Case file loaded: vitalik.eth — 1,362 transactions over 8.7 years. A benign heavyweight, useful as a baseline for what healthy wallet behavior looks like. What would you like to know?",
+  qa:[
+    {k:['donat','charity','gitcoin','give'], a:'Donations are the signature behavior here: $2.4M to Gitcoin Grants across 52 transactions, plus $1.9M to Kanro (a charity vehicle) — and that\'s just the last 12 months of this snapshot. Historically this wallet is one of the largest individual public-goods funders in the ecosystem.'},
+    {k:['risk','safe','score'], a:'8/100 — LOW, our baseline example of healthy behavior. Long tenure (8.7 years), fully traceable flows, no mixers, no fan-out patterns, moderate exchange use. The main caution is for analysts: don\'t misread the thousands of spam/dust transactions sent TO this address as associations.'},
+    {k:['exchange','sell','sold','kraken'], a:'Exchange activity is modest: 9 deposits to Kraken totaling ~$3.1M in the snapshot window. That\'s consistent with covering expenses/taxes, not distribution — it\'s a tiny fraction of holdings, spaced over months.'},
+    {k:['balance','worth','hold'], a:'This wallet holds 3,942 ETH (~$13.9M) at snapshot. Note that public figures typically hold across multiple wallets — this case file profiles the well-known primary address only.'},
+    {k:['dust','spam','airdrop','scam'], a:'Great question — this address receives thousands of unsolicited token airdrops and dust transfers from scam projects seeking implied endorsement. In the graph they\'re aggregated as one dashed node. Rule of thumb: inbound transfers cost the recipient nothing and prove nothing.'}
+  ]
+},
+
+/* ---------- CASE 3: Binance cold wallet (BTC) ---------- */
+btc_binance: {
+  id:'btc_binance', chain:'btc', caseNo:'CS-2026-0009',
+  address:'34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo',
+  label:'Binance: Cold Wallet',
+  desc:'Largest BTC address · ~248.6K BTC in custody · expected exchange pattern',
+  tags:[['Exchange','blue'],['Cold storage',''],['Top-1 richest address','violet']],
+  balanceNative:'248,598 BTC', balanceUsd:'$16.5B',
+  first:'Oct 18, 2018', last:'Jul 21, 2026', txCount:5564, age:'7.8 years',
+  risk:21,
+  riskBlurb:'Custodial cold storage for a major exchange. Behavior is expected and stable; the risk is concentration, not conduct.',
+  flags:[
+    {t:'Custodial concentration', s:'medium', d:'Single address holds ~1.2% of circulating BTC. Systemic, not behavioral, risk.'},
+    {t:'Expected exchange pattern', s:'low', d:'Infrequent large consolidations from identified hot wallets; no anomalous timing.'},
+    {t:'High-value target', s:'medium', d:'Permanent target for phishing, spoofed addresses, and dusting campaigns aimed at its depositors.'}
+  ],
+  stats:{in:9.8*B, out:4.1*B, peak:'Feb 2026', peakV:1.9*B},
+  timeline:{labels:['Aug 25','Sep','Oct','Nov','Dec','Jan 26','Feb','Mar','Apr','May','Jun','Jul'],
+    inflow:[.42*B,.08*B,1.1*B,.05*B,.61*B,.9*B,1.9*B,.12*B,.4*B,.75*B,.3*B,.22*B],
+    outflow:[.1*B,.55*B,.07*B,.8*B,.12*B,.35*B,.2*B,.95*B,.05*B,.3*B,.6*B,.11*B]},
+  counterparties:[
+    {addr:'bc1qm3…4qqr', label:'Binance: Hot Wallet 1', dir:'both', txs:412, usd:6.2*B, tag:['Internal','blue']},
+    {addr:'bc1qx9…tz3v', label:'Binance: Hot Wallet 2', dir:'both', txs:288, usd:3.9*B, tag:['Internal','blue']},
+    {addr:'3LYJf…9dQm', label:'Consolidation batch (agg.)', dir:'in', txs:104, usd:2.4*B, tag:['Internal','blue']},
+    {addr:'bc1q7k…m2wf', label:'Binance: Peg reserve (BTCB)', dir:'out', txs:41, usd:1.1*B, tag:['Reserve','']},
+    {addr:'36Zia…Xc1P', label:'Cold wallet rotation', dir:'out', txs:12, usd:.9*B, tag:['Internal','blue']}
+  ],
+  graph:{
+    nodes:[
+      {id:'subj', name:'Cold Wallet\n34xp4…wseo', cat:0, size:46},
+      {id:'hot1', name:'Hot Wallet 1', cat:1, size:32},
+      {id:'hot2', name:'Hot Wallet 2', cat:1, size:28},
+      {id:'cons', name:'Consolidation batches', cat:6, size:24},
+      {id:'peg', name:'BTCB peg reserve', cat:3, size:20},
+      {id:'rot', name:'Cold rotation', cat:5, size:18},
+      {id:'users', name:'Depositors (via hot) ×millions', cat:6, size:20}
+    ],
+    edges:[
+      {s:'hot1',t:'subj',usd:3.4*B,txs:230},
+      {s:'subj',t:'hot1',usd:2.8*B,txs:182},
+      {s:'hot2',t:'subj',usd:2.2*B,txs:150},
+      {s:'subj',t:'hot2',usd:1.7*B,txs:138},
+      {s:'cons',t:'subj',usd:2.4*B,txs:104},
+      {s:'subj',t:'peg',usd:1.1*B,txs:41},
+      {s:'subj',t:'rot',usd:.9*B,txs:12},
+      {s:'users',t:'hot1',usd:0,txs:0,dash:true}
+    ]
+  },
+  report:{
+    summary:'This is the primary Bitcoin cold-storage address of Binance and the largest single BTC address by balance (~248,597 BTC, ~$28.6B at snapshot). Activity over 7.7 years consists almost entirely of large, scheduled consolidations from identified hot wallets and periodic outbound replenishment — the canonical custodial pattern. No conduct-based risk indicators are present.',
+    findings:[
+      'Flow topology is a closed internal loop: >95% of volume moves between this address and attributed Binance infrastructure (hot wallets, consolidation batches, peg reserves).',
+      'Transaction cadence is operational, not market-driven: consolidations cluster in low-fee windows and follow reserve-management cycles.',
+      'The address anchors Binance\'s proof-of-reserves attestations; balance changes are publicly watched and routinely misread as "exchange dumping" signals.',
+      'Concentration is the real finding: a single UTXO set holding ~1.2% of all BTC is a systemic single point of failure, however well operated.'
+    ],
+    notable:[
+      '<b>Feb 2026 · $1.9B in</b> — quarterly consolidation sweep from hot-wallet cluster.',
+      '<b>Mar 2026 · $950M out</b> — hot-wallet replenishment during a high-withdrawal week.',
+      '<b>Oct 2025 · $1.1B in</b> — post-volatility consolidation, executed in a single batch.'
+    ],
+    assessment:'LOW (21/100), with a medium concentration caveat. Conduct is expected and transparent for a custodial cold wallet. Analysts should treat movements as reserve operations unless corroborated otherwise.',
+    actions:[
+      'Whitelist as known-exchange infrastructure in screening pipelines to avoid false positives.',
+      'Track large outbound movements against exchange withdrawal-volume announcements before inferring market intent.',
+      'Flag lookalike addresses (vanity spoofs of "34xp4…") in phishing detection — depositors are the target, not the wallet.'
+    ]
+  },
+  intro:"Case file loaded: Binance's BTC cold wallet — the largest single Bitcoin address, ~248.6K BTC. A benign case, but a great one for reading custodial patterns. Ask away.",
+  qa:[
+    {k:['risk','safe','score'], a:'21/100 — LOW conduct risk. It\'s a known custodial cold wallet doing exactly what cold wallets do: infrequent large consolidations in, periodic replenishments out. The medium-severity note is concentration: ~1.2% of all circulating BTC in one address is systemic risk even with perfect conduct.'},
+    {k:['who','owner','whose'], a:'It\'s publicly attributed to Binance as their primary BTC cold-storage address, and it anchors their proof-of-reserves attestations. First active October 2018.'},
+    {k:['dump','sell','market','move'], a:'Careful with that read. Big outflows from this address almost always correlate with hot-wallet replenishment during high-withdrawal periods — reserve logistics, not market selling. The March 2026 $950M outflow, for instance, matched a documented withdrawal surge.'},
+    {k:['balance','much','hold'], a:'248,597 BTC at snapshot — about $28.6B — making it the single largest Bitcoin address. Volume-wise, $9.8B has flowed in and $4.1B out over the observed window, >95% of it within Binance\'s own infrastructure.'}
+  ]
+},
+
+/* ---------- CASE 4: Nightfall Drainer (SOL, synthetic composite) ---------- */
+sol_nightfall: {
+  id:'sol_nightfall', chain:'sol', caseNo:'CS-2026-0198',
+  address:'5xQvUwzGeR8m3kJp2nYcTaVhF7sBdL9WqEuKoMiN4tHX',
+  label:'Nightfall Drainer: Campaign 7',
+  desc:'Active phishing drainer · 1,847 victims · $2.84M stolen in 11 weeks',
+  tags:[['Drainer kit','red'],['Phishing','red'],['Active threat','amber'],['Synthetic case','']],
+  balanceNative:'12,480 SOL', balanceUsd:'$2.1M',
+  first:'May 2, 2026', last:'Jul 22, 2026', txCount:3914, age:'11 weeks — ACTIVE',
+  risk:91,
+  riskBlurb:'Live wallet-drainer campaign. Automated victim fan-in, sub-minute swap-on-receive, cross-chain egress. Composite case built from real drainer TTPs.',
+  flags:[
+    {t:'Drainer-kit signature match', s:'critical', d:'Approval-phishing + batched asset sweep matches the "Nightfall v3" drainer kit fingerprint.'},
+    {t:'Victim fan-in: 1,847 unique senders', s:'high', d:'Thousands of small inbound transfers from unrelated wallets — the inverse of normal commerce.'},
+    {t:'Sub-60s swap-on-receive automation', s:'high', d:'Median 41s between receiving victim assets and swapping to USDC via aggregator.'},
+    {t:'Cross-chain egress', s:'medium', d:'$1.9M bridged out to EVM addresses via deBridge in structured tranches.'},
+    {t:'CEX deposit attempt', s:'medium', d:'$84K sent to an OKX deposit address; frozen after report.'}
+  ],
+  stats:{in:2.84*M, out:2.31*M, peak:'Wk of Jun 15', peakV:.61*M},
+  timeline:{labels:['W1 May','W2','W3','W4','W5 Jun','W6','W7','W8','W9 Jul','W10','W11','W12'],
+    inflow:[.08*M,.14*M,.19*M,.22*M,.31*M,.42*M,.61*M,.38*M,.21*M,.15*M,.09*M,.04*M],
+    outflow:[.02*M,.09*M,.16*M,.2*M,.27*M,.35*M,.5*M,.36*M,.19*M,.11*M,.05*M,.01*M]},
+  counterparties:[
+    {addr:'1,847 wallets', label:'Victim fan-in (aggregated)', dir:'in', txs:2841, usd:2.84*M, tag:['Victims','red']},
+    {addr:'JUP6L…kNyG', label:'Jupiter Aggregator', dir:'both', txs:812, usd:2.79*M, tag:['DeFi swap','emerald']},
+    {addr:'deBr1…8fQz', label:'deBridge: SOL→EVM', dir:'out', txs:57, usd:1.9*M, tag:['Bridge','amber']},
+    {addr:'8mKw3…Pv2N', label:'Mule wallet 1', dir:'out', txs:31, usd:.21*M, tag:['Fresh wallet','']},
+    {addr:'3nRt7…Wd9C', label:'Mule wallet 2', dir:'out', txs:26, usd:.14*M, tag:['Fresh wallet','']},
+    {addr:'6yHb2…Qk4S', label:'OKX: Deposit', dir:'out', txs:4, usd:.084*M, tag:['Exchange · frozen','blue']}
+  ],
+  graph:{
+    nodes:[
+      {id:'v1', name:'Victims ×1,847', cat:6, size:38},
+      {id:'subj', name:'Nightfall\n5xQv…4tHX', cat:0, size:44},
+      {id:'jup', name:'Jupiter', cat:4, size:28},
+      {id:'debr', name:'deBridge', cat:3, size:26},
+      {id:'m1', name:'Mule 1', cat:5, size:16},
+      {id:'m2', name:'Mule 2', cat:5, size:14},
+      {id:'okx', name:'OKX', cat:1, size:14},
+      {id:'evm', name:'EVM egress (unattributed)', cat:6, size:24}
+    ],
+    edges:[
+      {s:'v1',t:'subj',usd:2.84*M,txs:2841},
+      {s:'subj',t:'jup',usd:2.79*M,txs:812},
+      {s:'jup',t:'subj',usd:2.77*M,txs:806},
+      {s:'subj',t:'debr',usd:1.9*M,txs:57},
+      {s:'subj',t:'m1',usd:.21*M,txs:31},
+      {s:'subj',t:'m2',usd:.14*M,txs:26},
+      {s:'m1',t:'okx',usd:.084*M,txs:4},
+      {s:'debr',t:'evm',usd:1.9*M,txs:0,dash:true}
+    ]
+  },
+  report:{
+    summary:'This wallet is the central collection point of an active Solana wallet-drainer campaign ("Nightfall v3" kit fingerprint), operating for 11 weeks and still live at snapshot. It has received $2.84M from 1,847 unique victim wallets via approval-phishing, auto-swapped stolen assets to USDC through Jupiter within a median of 41 seconds, and bridged $1.9M to EVM addresses via deBridge. This is a synthetic composite case built from real drainer tradecraft, assembled for demonstration.',
+    findings:[
+      'Inbound topology is pure fan-in: thousands of small transfers from unrelated wallets with no prior relationship to the subject — the statistical inverse of merchant or personal activity.',
+      'Swap-on-receive automation is near-instant (median 41s), indicating hot-key scripting rather than manual operation.',
+      'Egress is structured: deBridge transfers cluster just below round-number thresholds in repeating tranches — classic structuring behavior.',
+      'The campaign follows a growth-decay curve (peak week: $610K in) consistent with a phishing domain being progressively blocklisted.',
+      'Mule wallets are single-purpose and short-lived; one attempted a $84K OKX off-ramp that was frozen after an exchange report.'
+    ],
+    notable:[
+      '<b>Jun 15–21, 2026 · $610K in</b> — peak victim week, 412 unique senders.',
+      '<b>May–Jul 2026 · 57 bridge txs</b> — $1.9M structured egress via deBridge to EVM.',
+      '<b>Jul 2, 2026 · $84K frozen</b> — OKX deposit flagged and held.'
+    ],
+    assessment:'CRITICAL (91/100) and ACTIVE. The wallet was last active today. Victim inflows are decaying but the collection and egress automation remains live.',
+    actions:[
+      'Report the associated phishing domains for blocklisting; inflow decay tracks domain takedowns.',
+      'Alert bridging counterparties: the deBridge egress path to EVM is the current chokepoint.',
+      'Trace the EVM-side receiving cluster before funds reach mixers; a freeze window may still exist.',
+      'Publish the victim-address list to wallet-warning registries to prevent re-victimization.'
+    ]
+  },
+  intro:"Case file loaded: an ACTIVE drainer campaign — 1,847 victims, $2.84M in 11 weeks, last movement today. (This one is a synthetic composite of real drainer tradecraft.) What do you want to trace?",
+  qa:[
+    {k:['victim','how many','fan'], a:'1,847 unique victim wallets so far, contributing $2.84M across 2,841 inbound transfers. The fan-in pattern is the tell: thousands of unrelated wallets sending once, with no prior relationship to the subject. Peak week saw 412 unique victims.'},
+    {k:['where','funds','money','go','went','egress'], a:'The pipeline is: victim assets → instant swap to USDC on Jupiter (median 41 seconds after receipt) → bridged out via deBridge to EVM addresses ($1.9M in 57 structured tranches). Small amounts went to two mule wallets; one tried an $84K OKX off-ramp that got frozen.'},
+    {k:['drainer','kit','how','work','phish'], a:'It\'s approval-phishing: victims sign a malicious transaction on a fake mint/claim site, granting sweep permissions. The "Nightfall v3" kit then batches asset transfers out automatically. The sub-minute swap-on-receive timing tells you it\'s fully scripted — nobody is doing this by hand.'},
+    {k:['active','still','live','now'], a:'Yes — last activity is today (Jul 21). Inflows are decaying (~$40K this week vs $610K at peak), which usually tracks phishing-domain takedowns, but the collection wallet and egress automation are still live. The freeze window on the EVM side may still be open.'},
+    {k:['risk','score'], a:'91/100 — CRITICAL, and unlike most critical cases, ACTIVE. Immediate actions: blocklist the phishing domains, alert the bridge, and trace the EVM receiving cluster before funds hit a mixer.'}
+  ]
+}
+};
+
+/* ============================================================
+   DATA LAYER v0.2 — LIVE on-chain wiring
+   The UI still never touches the network directly; everything
+   routes through api.* below. Featured cases are curated +
+   live-verified; arbitrary addresses are fetched in real time.
+   ============================================================ */
+const PRICES = { eth:1918.99, btc:66293, sol:77.81, _snapshot:'Jul 22, 2026' }; // CoinGecko @ build
+
+// Keyless, CORS-friendly endpoints used from the browser (no secrets shipped)
+const ENDPOINTS = {
+  eth:{ base:'https://eth.blockscout.com/api/v2', name:'Blockscout' },
+  btc:{ base:'https://blockstream.info/api',       name:'Blockstream' },
+  sol:{ rpc:'https://api.mainnet-beta.solana.com', name:'Solana RPC' }
+};
+/* PRODUCTION UPGRADE PATH (needs a backend to hold keys — never ship keys to the browser):
+   eth → Etherscan API V2 : https://api.etherscan.io/v2/api?chainid={1|10|8453|…}&module=account&action=txlist&address={addr}&apikey=${ETHERSCAN_KEY}
+                            (one key, 50+ EVM chains via chainid)
+   sol → Helius           : https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}  (enhanced txs, SPL flows, DAS)
+   btc → Blockstream/Esplora (keyless) or mempool.space
+   Move fetch* below server-side, inject keys from env, keep this same normalized shape. */
+const LIVE_CACHE = {};
+
+function fetchJSON(url, opts={}, ms=13000){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), ms);
+  return fetch(url, {...opts, signal:ctrl.signal, headers:{'Accept':'application/json',...(opts.headers||{})}})
+    .then(r=>{ if(r.status===404) { const e=new Error('not found'); e.code='NOT_FOUND'; throw e; }
+               if(!r.ok){ const e=new Error('HTTP '+r.status); e.code='HTTP'; throw e; } return r.json(); })
+    .catch(e=>{ if(e.code) throw e;
+                const err=new Error(e.name==='AbortError'?'timeout':'unreachable');
+                err.code = e.name==='AbortError' ? 'TIMEOUT' : 'BLOCKED'; throw err; })
+    .finally(()=>clearTimeout(t));
+}
+
+/* ---- helpers ---- */
+function tlFromItems(items){ // items: {ts,out,v}
+  const map={};
+  items.forEach(t=>{ if(!t.ts) return;
+    const d=new Date(t.ts), key=d.getFullYear()*12+d.getMonth();
+    const label=d.toLocaleString('en-US',{month:'short'})+' '+String(d.getFullYear()).slice(2);
+    const b=map[key]||(map[key]={label,in:0,out:0}); b[t.out?'out':'in']+=t.v||0;
+  });
+  const keys=Object.keys(map).map(Number).sort((a,b)=>a-b).slice(-12);
+  return {labels:keys.map(k=>map[k].label), inflow:keys.map(k=>map[k].in), outflow:keys.map(k=>map[k].out)};
+}
+function cpsFromItems(items){ // items: {out,v,other,name}
+  const map={};
+  items.forEach(t=>{ if(!t.other) return; const k=t.other.toLowerCase();
+    const e=map[k]||(map[k]={addr:shortAddr(t.other),label:t.name||shortAddr(t.other),dir:t.out?'out':'in',txs:0,usd:0,tag:['','']});
+    e.txs++; e.usd+=t.v||0;
+    if((t.out&&e.dir==='in')||(!t.out&&e.dir==='out')) e.dir='both';
+    if(t.name) e.label=t.name;
+    map[k]=e;
+  });
+  const arr=Object.values(map).sort((a,b)=>b.usd-a.usd).slice(0,7);
+  arr.forEach(c=>{ c.tag=labelTag(c.label); });
+  return arr;
+}
+function labelTag(label){
+  const l=(label||'').toLowerCase();
+  if(/tornado|mixer|blender|wasabi/.test(l)) return ['Mixer','red'];
+  if(/bridge|wormhole|debridge|hop|across|celer|synapse/.test(l)) return ['Bridge','amber'];
+  if(/binance|coinbase|kraken|okx|bybit|huobi|kucoin|bitfinex|gate|exchange|deposit/.test(l)) return ['Exchange','blue'];
+  if(/uniswap|sushi|1inch|0x|jupiter|curve|aave|compound|router|swap/.test(l)) return ['DeFi','emerald'];
+  if(/null|burn|0x0000/.test(l)) return ['Burn',''];
+  return ['',''];
+}
+function graphFromCps(subjLabel, cps){
+  const CAT={Mixer:2,Bridge:3,Exchange:1,DeFi:4,'':5};
+  const nodes=[{id:'subj',name:subjLabel,cat:0,size:42}];
+  const edges=[];
+  cps.forEach((c,i)=>{ const id='n'+i;
+    nodes.push({id,name:c.label.length>16?c.label.slice(0,15)+'…':c.label, cat:CAT[c.tag[0]]??5, size:Math.max(12,Math.min(30,10+Math.log10(c.usd+10)*4))});
+    edges.push(c.dir==='in'?{s:id,t:'subj',usd:c.usd,txs:c.txs}:{s:'subj',t:id,usd:c.usd,txs:c.txs});
+  });
+  return {nodes,edges};
+}
+function scoreRisk(sig){
+  let r=8; const flags=[];
+  if(sig.scam){ r+=72; flags.push({t:'Flagged by block explorer',s:'critical',d:'This address carries a public scam/abuse tag on the explorer.'}); }
+  const mix=sig.cps.filter(c=>c.tag[0]==='Mixer');
+  if(mix.length){ r+=45; flags.push({t:'Mixer exposure',s:'critical',d:`Direct flow to/from ${mix.map(m=>m.label).join(', ')}.`}); }
+  const br=sig.cps.filter(c=>c.tag[0]==='Bridge');
+  if(br.length){ r+=10; flags.push({t:'Cross-chain bridge use',s:'medium',d:`${br.length} bridge counterpart(y/ies) in recent flow — funds may leave this chain.`}); }
+  if(sig.contract){ r+=5; flags.push({t:'Contract / smart account',s:'info',d:sig.proxy?`Smart-contract account (${sig.proxy}).`:'Address is a contract, not an EOA.'}); }
+  const outCps=sig.cps.filter(c=>c.dir!=='in').length;
+  if(outCps>=6){ r+=12; flags.push({t:'Wide out-distribution',s:'high',d:`Funds spread across ${outCps}+ distinct recipients in the recent window — possible fan-out.`}); }
+  if(sig.inCount>=40 && sig.medIn>0 && sig.medIn<250){ r+=14; flags.push({t:'High fan-in of small transfers',s:'high',d:'Many small inbound transfers from distinct senders — a drainer/dust pattern.'}); }
+  if(!flags.length) flags.push({t:'No adverse signals in window',s:'low',d:'Recent on-chain activity shows no mixer, sanctions-proximity, or fan-out patterns.'});
+  return {risk:Math.max(2,Math.min(95,Math.round(r))), flags};
+}
+function liveReport(p, extra){
+  const cin=p.counterparties.filter(c=>c.dir!=='out'), cout=p.counterparties.filter(c=>c.dir!=='in');
+  const top=p.counterparties[0];
+  const findings=[];
+  if(top) findings.push(`Largest counterparty is ${top.label} (${top.dir.toUpperCase()}) at ${fmtUsd(top.usd)} across ${fmtN(top.txs)} transfers.`);
+  findings.push(`Recent window: ${fmtUsd(p.stats.in)} inbound vs ${fmtUsd(p.stats.out)} outbound across ${p.counterparties.length} tracked counterparties.`);
+  if(extra&&extra.length) findings.push(...extra);
+  p.flags.filter(f=>f.s==='critical'||f.s==='high').forEach(f=>findings.push(`${f.t}: ${f.d}`));
+  return {
+    summary:`Live snapshot via ${p.source}. This ${CHAIN_META[p.chain].name} address holds ${p.balanceNative} (${p.balanceUsd}) over ${fmtN(p.txCount)} transactions, last active ${p.last}. ${top?`Recent flow is dominated by ${top.label}.`:''}`,
+    findings,
+    notable:p.counterparties.slice(0,3).map(c=>`<b>${c.dir.toUpperCase()} · ${fmtUsd(c.usd)}</b> — ${c.label} (${fmtN(c.txs)} txs)`),
+    assessment:`${riskWord(p.risk)} (${p.risk}/100), heuristic v0.1 over the recent activity window. Live labels are explorer-provided; deep attribution needs an indexer.`,
+    actions:[
+      'Verify counterparty labels against a second source before acting.',
+      'For token/SPL-level flows and full history, enable an indexer (Etherscan V2 · Helius) via the backend.',
+      p.risk>=55?'Screen inbound funds for ancestry within 3 hops of flagged counterparties.':'No enforcement action indicated from the current window.'
+    ]
+  };
+}
+
+/* ---- per-chain live fetchers → normalized WalletProfile ---- */
+async function fetchEthLive(address){
+  const base=ENDPOINTS.eth.base, price=PRICES.eth, subj=address.toLowerCase();
+  const info=await fetchJSON(`${base}/addresses/${address}`);
+  const [counters, txs] = await Promise.all([
+    fetchJSON(`${base}/addresses/${address}/counters`).catch(()=>({})),
+    fetchJSON(`${base}/addresses/${address}/transactions`).catch(()=>({items:[]}))
+  ]);
+  const items=(txs.items||[]).filter(t=>t.from&&t.hash).map(t=>{
+    const from=(t.from.hash||'').toLowerCase(), out=from===subj, other=out?t.to:t.from;
+    return {ts:t.timestamp, out, v:(+t.value||0)/1e18*price, other:other&&other.hash, name:other&&other.name};
+  });
+  const cps=cpsFromItems(items), tl=tlFromItems(items);
+  const inUsd=items.filter(i=>!i.out).reduce((s,i)=>s+i.v,0), outUsd=items.filter(i=>i.out).reduce((s,i)=>s+i.v,0);
+  const bal=(+info.coin_balance||0)/1e18;
+  const inItems=items.filter(i=>!i.out).map(i=>i.v).sort((a,b)=>a-b);
+  const {risk,flags}=scoreRisk({scam:info.is_scam,contract:info.is_contract,proxy:info.proxy_type,cps,inCount:inItems.length,medIn:inItems[Math.floor(inItems.length/2)]||0});
+  const label=info.ens_domain_name||info.name||(info.public_tags&&info.public_tags[0]&&info.public_tags[0].display_name)||shortAddr(address);
+  const tags=[];
+  if(info.ens_domain_name) tags.push(['ENS: '+info.ens_domain_name,'violet']);
+  if(info.is_contract) tags.push([info.proxy_type?('Smart account · '+info.proxy_type):'Contract','blue']);
+  if(info.is_scam) tags.push(['Explorer scam tag','red']);
+  tags.push(['Live · Blockscout','emerald']);
+  const p={ id:'live_'+subj.slice(2,10), chain:'eth', live:true, source:ENDPOINTS.eth.name, caseNo:'LIVE / '+ENDPOINTS.eth.name,
+    address, label, desc:'Live Ethereum lookup', tags,
+    balanceNative:bal.toLocaleString('en-US',{maximumFractionDigits:4})+' ETH', balanceUsd:fmtUsd(bal*price),
+    first:'—', last:items[0]?fmtDate(items[0].ts):'—', txCount:+ (counters.transactions_count||info.transactions_count||items.length), age:'live',
+    risk, riskBlurb:flags[0].d, flags,
+    stats:{in:inUsd,out:outUsd,peak:tl.labels[tl.inflow.indexOf(Math.max(...tl.inflow,0))]||'—',peakV:Math.max(inUsd,outUsd)},
+    timeline:tl.labels.length?tl:{labels:['window'],inflow:[inUsd],outflow:[outUsd]},
+    counterparties:cps.length?cps:[{addr:shortAddr(address),label:'No native transfers in recent window',dir:'both',txs:0,usd:0,tag:['','']}],
+    graph:graphFromCps(label.length>14?shortAddr(address):label, cps),
+    qa:[] };
+  const extra=[];
+  if(info.token&&info.token.name) extra.push(`Explorer identifies an associated token: ${info.token.name}.`);
+  extra.push('Note: figures cover native ETH transfers in the recent window; ERC-20/token flows need an indexer (Etherscan V2).');
+  p.report=liveReport(p,extra);
+  return p;
+}
+async function fetchBtcLive(address){
+  const base=ENDPOINTS.btc.base, price=PRICES.btc, subj=address;
+  const info=await fetchJSON(`${base}/address/${address}`);
+  const txs=await fetchJSON(`${base}/address/${address}/txs`).catch(()=>[]);
+  const items=(txs||[]).map(t=>{
+    const inVin=(t.vin||[]).some(i=>i.prevout&&i.prevout.scriptpubkey_address===subj);
+    const out=inVin;
+    let v=0, other=null;
+    if(out){ const outs=(t.vout||[]).filter(o=>o.scriptpubkey_address&&o.scriptpubkey_address!==subj).sort((a,b)=>b.value-a.value); v=outs.reduce((s,o)=>s+o.value,0); other=outs[0]&&outs[0].scriptpubkey_address; }
+    else { const outs=(t.vout||[]).filter(o=>o.scriptpubkey_address===subj); v=outs.reduce((s,o)=>s+o.value,0); const ins=(t.vin||[]).map(i=>i.prevout&&i.prevout.scriptpubkey_address).filter(a=>a&&a!==subj); other=ins[0]; }
+    return {ts:(t.status&&t.status.block_time)?t.status.block_time*1000:null, out, v:v/1e8*price, other, name:null};
+  });
+  const cps=cpsFromItems(items), tl=tlFromItems(items);
+  const inUsd=items.filter(i=>!i.out).reduce((s,i)=>s+i.v,0), outUsd=items.filter(i=>i.out).reduce((s,i)=>s+i.v,0);
+  const bal=((info.chain_stats.funded_txo_sum||0)-(info.chain_stats.spent_txo_sum||0))/1e8;
+  const {risk,flags}=scoreRisk({scam:false,contract:false,cps,inCount:items.filter(i=>!i.out).length,medIn:0});
+  const label=shortAddr(address);
+  const p={ id:'live_'+address.slice(0,8), chain:'btc', live:true, source:ENDPOINTS.btc.name, caseNo:'LIVE / '+ENDPOINTS.btc.name,
+    address, label, desc:'Live Bitcoin lookup', tags:[['UTXO wallet',''],['Live · Blockstream','emerald']],
+    balanceNative:bal.toLocaleString('en-US',{maximumFractionDigits:4})+' BTC', balanceUsd:fmtUsd(bal*price),
+    first:'—', last:items[0]&&items[0].ts?fmtDate(items[0].ts):'—', txCount:info.chain_stats.tx_count||items.length, age:'live',
+    risk, riskBlurb:flags[0].d, flags,
+    stats:{in:inUsd,out:outUsd,peak:tl.labels[0]||'—',peakV:Math.max(inUsd,outUsd)},
+    timeline:tl.labels.length?tl:{labels:['window'],inflow:[inUsd],outflow:[outUsd]},
+    counterparties:cps.length?cps:[{addr:label,label:'No counterparties in recent window',dir:'both',txs:0,usd:0,tag:['','']}],
+    graph:graphFromCps(label, cps), qa:[] };
+  p.report=liveReport(p,['Bitcoin flows are approximated from the recent tx window (UTXO model); counterparty = largest non-self address per tx.']);
+  return p;
+}
+async function fetchSolLive(address){
+  const rpc=ENDPOINTS.sol.rpc, price=PRICES.sol;
+  const call=(method,params)=>fetchJSON(rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})}).then(r=>{if(r.error)throw new Error(r.error.message);return r.result;});
+  const [balR, sigs] = await Promise.all([ call('getBalance',[address]), call('getSignaturesForAddress',[address,{limit:200}]).catch(()=>[]) ]);
+  const bal=(balR&&balR.value?balR.value:0)/1e9;
+  const times=(sigs||[]).filter(s=>s.blockTime).map(s=>s.blockTime*1000);
+  const tlItems=times.map(ts=>({ts,out:false,v:1})); // activity per month (value-level flow needs Helius)
+  const tl=tlFromItems(tlItems);
+  const p={ id:'live_'+address.slice(0,8), chain:'sol', live:true, source:ENDPOINTS.sol.name, caseNo:'LIVE / '+ENDPOINTS.sol.name,
+    address, label:shortAddr(address), desc:'Live Solana lookup', tags:[['SPL wallet',''],['Live · Solana RPC','emerald']],
+    balanceNative:bal.toLocaleString('en-US',{maximumFractionDigits:4})+' SOL', balanceUsd:fmtUsd(bal*price),
+    first:times.length?fmtDate(Math.min(...times)):'—', last:times.length?fmtDate(Math.max(...times)):'—', txCount:(sigs||[]).length>=200?'200+':(sigs||[]).length, age:'live',
+    risk:12, riskBlurb:'Balance and activity are live; value-level flow mapping needs an enhanced indexer.',
+    flags:[{t:'Activity-level view only',s:'info',d:'Public RPC gives balance + signature history. SPL token flows, counterparties, and value need Helius (enhanced transactions).'}],
+    stats:{in:0,out:0,peak:tl.labels.slice(-1)[0]||'—',peakV:0},
+    timeline:tl.labels.length?tl:{labels:['window'],inflow:[0],outflow:[0]},
+    counterparties:[{addr:shortAddr(address),label:'Enable Helius for SPL counterparties',dir:'both',txs:(sigs||[]).length,usd:0,tag:['Needs indexer','amber']}],
+    graph:{nodes:[{id:'subj',name:shortAddr(address),cat:0,size:42}],edges:[]}, qa:[] };
+  p.report={ summary:`Live snapshot via ${p.source}. This Solana address holds ${p.balanceNative} (${p.balanceUsd}) with ${p.txCount} recent signatures, last active ${p.last}.`,
+    findings:['Balance and signature history are live from the public RPC.','Value-level flow, SPL token movements, and counterparties require an enhanced indexer (Helius) — wired via the backend in production.'],
+    notable:times.slice(0,3).map(t=>`<b>Signature</b> — ${fmtDate(t)}`),
+    assessment:'LOW (heuristic). Activity-level view only; not a full behavioral profile.',
+    actions:['Connect Helius to unlock SPL flows, counterparties, and drainer detection on Solana.'] };
+  return p;
+}
+
+/* ---- public data layer ---- */
+const api = {
+  getFeaturedCases(){ return Object.values(CASES); },
+  async fetchWalletData(chain, address){
+    const hit = Object.values(CASES).find(c=>c.address.toLowerCase()===address.toLowerCase());
+    if(hit) return hit; // curated + live-verified featured case
+    // Prefer the backend: server-side fetch avoids browser CORS/403 and uses server keys.
+    if(typeof AI!=='undefined' && AI.reachable){
+      try{
+        const bp = await fetchJSON((AI.base||'')+'/api/wallet',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chain,address})}, 42000);
+        if(bp && !bp.error){ bp.id = bp.id || ('live_'+chain+'_'+address.slice(0,8)); LIVE_CACHE[bp.id]=bp; return bp; }
+      }catch(e){ /* fall through to client-side */ }
+    }
+    const p = chain==='eth' ? await fetchEthLive(address)
+            : chain==='btc' ? await fetchBtcLive(address)
+            : chain==='sol' ? await fetchSolLive(address)
+            : (()=>{throw new Error('unsupported chain')})();
+    LIVE_CACHE[p.id]=p; return p;
+  },
+  generateReport(profile){ return profile.report; },
+  askInvestigator(profile, q){
+    const s=q.toLowerCase();
+    const hit=(profile.qa||[]).find(e=>e.k.some(k=>s.includes(k)));
+    if(hit) return hit.a;
+    const top=profile.counterparties[0];
+    if(profile.live){
+      if(/where|fund|money|go|went|flow/.test(s)) return `From the live window via ${profile.source}: ${fmtUsd(profile.stats.in)} in, ${fmtUsd(profile.stats.out)} out. Largest counterparty is ${top.label} (${top.dir.toUpperCase()}) at ${fmtUsd(top.usd)}. Deeper tracing needs an indexer.`;
+      if(/risk|safe|score/.test(s)) return `Heuristic risk is ${profile.risk}/100 (${riskWord(profile.risk)}) over the recent window. ${profile.flags[0].t}: ${profile.flags[0].d}`;
+      if(/balance|hold|worth/.test(s)) return `It holds ${profile.balanceNative} (${profile.balanceUsd}) across ${fmtN(profile.txCount)} transactions, last active ${profile.last}.`;
+      return `Live data via ${profile.source}: risk ${profile.risk}/100, balance ${profile.balanceNative}, top counterparty ${top.label} at ${fmtUsd(top.usd)}. For token-level flows and full attribution, connect an indexer (Etherscan V2 / Helius).`;
+    }
+    return `From the case file: risk is ${profile.risk}/100, and the top counterparty is ${top.label} at ${fmtUsd(top.usd)} across ${fmtN(top.txs)} txs. Try one of the suggested questions below.`;
+  }
+};
+
+/* ============================================================
+   HELPERS / STATE
+   ============================================================ */
+const $ = id => document.getElementById(id);
+function fmtUsd(n){
+  if(n>=1e9) return '$'+(n/1e9).toFixed(1).replace(/\.0$/,'')+'B';
+  if(n>=1e6) return '$'+(n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
+  if(n>=1e3) return '$'+(n/1e3).toFixed(0)+'K';
+  return '$'+Math.round(n);
+}
+function fmtN(n){ return (typeof n==='number'?n:(parseInt(n)||n)).toLocaleString('en-US'); }
+function fmtDate(ts){ const d=new Date(ts); return isNaN(d)?'—':d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function riskWord(r){ return r>=80?'CRITICAL':r>=55?'HIGH':r>=30?'ELEVATED':'LOW'; }
+function riskColor(r){ return r>=80?'#ef4444':r>=55?'#f59e0b':r>=30?'#eab308':'#10b981'; }
+function riskChipClass(r){ return r>=80?'crit':r>=55?'high':'low'; }
+function shortAddr(a){ return a.length>18 ? a.slice(0,8)+'…'+a.slice(-6) : a; }
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function toast(msg, kind='ok'){
+  const t=document.createElement('div'); t.className='toast '+kind;
+  const ic2 = kind==='ok'?'check':kind==='warn'?'info':'alertTriangle';
+  t.innerHTML = icon(ic2)+'<span>'+msg+'</span>';
+  $('toasts').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),320)}, 3400);
+}
+
+const state = { current:null, chainFilter:'all', charts:{}, chatBusy:false };
+const GRAPH_CATS = [
+  {name:'Subject', color:'#6ECE9D'},
+  {name:'Exchange', color:'#7FB5F5'},
+  {name:'Mixer', color:'#F0A8A0'},
+  {name:'Bridge', color:'#FFDA6E'},
+  {name:'Protocol', color:'#B7E4CE'},
+  {name:'Wallet', color:'#D6D0C0'},
+  {name:'Cluster', color:'#E4DED0'}
+];
+
+/* ============================================================
+   ROUTER
+   ============================================================ */
+function enterConsole(caseId){
+  location.hash = 'console';
+  $('view-landing').style.display='none';
+  $('view-console').style.display='block';
+  window.scrollTo(0,0);
+  if(!state.current) loadCase(caseId || 'eth_ronin');
+  else if(caseId && caseId!==state.current.id) loadCase(caseId);
+  else requestAnimationFrame(resizeCharts);
+}
+function goHome(e){
+  if(e) e.preventDefault();
+  location.hash='';
+  $('view-console').style.display='none';
+  $('view-landing').style.display='block';
+  window.scrollTo(0,0);
+  lpShowChars();
+  return false;
+}
+window.addEventListener('hashchange', ()=>{
+  if(location.hash==='#console') enterConsole();
+  else goHome();
+});
+
+/* ============================================================
+   SIDEBAR / CHAIN FILTER
+   ============================================================ */
+function renderSidebar(){
+  const list = api.getFeaturedCases().filter(c=>state.chainFilter==='all'||c.chain===state.chainFilter);
+  $('caseCount').textContent = list.length+' loaded';
+  $('caseList').innerHTML = list.map(c=>`
+    <button class="case-card ${state.current&&state.current.id===c.id?'on':''}" onclick="loadCase('${c.id}')">
+      <div class="r1"><span class="bglyph">${GLYPH[c.chain]}</span><span class="nm">${esc(c.label)}</span><span class="risk-chip ${riskChipClass(c.risk)}">${c.risk}</span></div>
+      <div class="ad">${shortAddr(c.address)}</div>
+      <div class="ds">${esc(c.desc)}</div>
+    </button>`).join('');
+}
+document.querySelectorAll('#chainSeg button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#chainSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    state.chainFilter = b.dataset.chain;
+    renderSidebar();
+  });
+});
+
+/* ============================================================
+   CASE LOADER
+   ============================================================ */
+function loadCase(id){
+  const c = CASES[id] || LIVE_CACHE[id]; if(!c) return;
+  state.current = c;
+  renderSidebar();
+  $('mainContent').style.display='none';
+  $('mainSkeleton').style.display='block';
+  setTimeout(()=>{
+    $('mainSkeleton').style.display='none';
+    $('mainContent').style.display='block';
+    renderAll(c);
+  }, 620);
+}
+
+function renderAll(c){
+  const cm = CHAIN_META[c.chain];
+  $('caseTitle').textContent = c.label;
+  $('chainBadge').innerHTML = `<span class="badge ${cm.badge}"><span class="bglyph" style="width:12px;height:12px">${GLYPH[c.chain]}</span>${cm.name}</span>` + (c.live ? ` <span class="badge emerald">● LIVE · ${c.source}</span>` : ` <span class="badge outline">✓ live-verified</span>`);
+  $('riskBadgeTop').innerHTML = `<span class="badge ${c.risk>=80?'red':c.risk>=55?'amber':'emerald'}">Risk ${c.risk} · ${riskWord(c.risk)}</span>`;
+  $('caseNo').textContent = c.caseNo;
+  $('addrFull').textContent = c.address;
+  $('tagRow').innerHTML = c.tags.map(t=>`<span class="badge ${t[1]}">${esc(t[0])}</span>`).join('');
+  $('statGrid').innerHTML = [
+    ['Balance', c.balanceNative],
+    ['Value (USD)', c.balanceUsd],
+    ['Transactions', fmtN(c.txCount)],
+    ['First seen', c.first],
+    ['Last active', c.last],
+    ['Wallet age', c.age]
+  ].map(([k,v])=>`<div><div class="stat-k">${k}</div><div class="stat-v">${v}</div></div>`).join('');
+
+  // risk
+  const arc = $('riskArc'), circ = 2*Math.PI*41;
+  arc.setAttribute('stroke', riskColor(c.risk));
+  arc.setAttribute('stroke-dasharray', `${(c.risk/100)*circ} ${circ}`);
+  $('riskNum').textContent = c.risk;
+  $('riskNum').style.color = riskColor(c.risk);
+  $('riskWord').textContent = riskWord(c.risk);
+  $('riskWord').style.color = riskColor(c.risk);
+  $('riskBlurb').textContent = c.riskBlurb;
+  $('flagList').innerHTML = c.flags.map(f=>`
+    <div class="flag"><span class="sq" style="background:${{critical:'#ef4444',high:'#f59e0b',medium:'#3b82f6',low:'#10b981',info:'#71717a'}[f.s]}"></span>
+    <div><div class="fl-t">${esc(f.t)} <span class="sev ${f.s}">${f.s.toUpperCase()}</span></div><div class="fl-d">${esc(f.d)}</div></div></div>`).join('');
+
+  // flow stats
+  $('flowStats').innerHTML = [
+    ['Total inflow', fmtUsd(c.stats.in), '#237a52'],
+    ['Total outflow', fmtUsd(c.stats.out), '#c04747'],
+    ['Net', fmtUsd(c.stats.in-c.stats.out), '#000'],
+    ['Peak period', `${fmtUsd(c.stats.peakV)} <small>· ${c.stats.peak}</small>`, '#000']
+  ].map(([k,v,col])=>`<div><div class="stat-k">${k}</div><div class="stat-v" style="color:${col}">${v}</div></div>`).join('');
+
+  // counterparties
+  $('cpHint').textContent = c.counterparties.length+' entities by volume';
+  $('cpBody').innerHTML = c.counterparties.map(p=>`
+    <tr>
+      <td><div class="cp-label">${esc(p.label)}</div><div class="cp-addr">${esc(p.addr)}</div></td>
+      <td><span class="dir ${p.dir}">${p.dir.toUpperCase()}</span></td>
+      <td class="num">${fmtN(p.txs)}</td>
+      <td class="num" style="font-weight:600">${fmtUsd(p.usd)}</td>
+      <td>${p.tag[0]?`<span class="badge ${p.tag[1]} outline">${esc(p.tag[0])}</span>`:''}</td>
+    </tr>`).join('');
+
+  renderReport(c, false);
+  maybeEnhanceReport(c);
+  renderCharts(c);
+  resetChat(c);
+}
+
+/* ============================================================
+   REPORT
+   ============================================================ */
+function reportHtml(r){
+  return `
+    <h4>Executive summary</h4><p id="repSummary">${esc(r.summary)}</p>
+    <h4>Key findings</h4><ol>${r.findings.map(f=>`<li>${esc(f)}</li>`).join('')}</ol>
+    <h4>Notable transactions</h4><div style="display:flex;flex-direction:column;gap:8px">${r.notable.map(n=>`<div class="ntx">${n}</div>`).join('')}</div>
+    <h4>Risk assessment</h4><p>${esc(r.assessment)}</p>
+    <h4>Recommended actions</h4><ul>${r.actions.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`;
+}
+function renderReport(c, stream){
+  const r = api.generateReport(c);
+  $('rmCase').textContent = c.caseNo;
+  $('rmDate').textContent = c.live ? ('Live · '+c.source) : ('Live-verified · '+PRICES._snapshot);
+  $('rmChain').textContent = CHAIN_META[c.chain].name;
+  $('reportBody').innerHTML = reportHtml(r);
+  if(stream){
+    const el = $('repSummary'), full = r.summary; el.textContent='';
+    let i=0; const iv=setInterval(()=>{ el.textContent=full.slice(0,i+=4); if(i>=full.length){clearInterval(iv); el.textContent=full;} },12);
+  }
+}
+function regenReport(){
+  const body=$('reportBody');
+  const ov=document.createElement('div'); ov.className='shimmer-overlay';
+  ov.innerHTML=`<div class="in"><span class="spinner"></span>${AI.on?'Chainsight AI is re-analyzing… (free model, ~30s)':'Re-analyzing '+fmtN(state.current.txCount)+' transactions…'}</div>`;
+  body.appendChild(ov);
+  if(AI.on){
+    api.generateReportAI(state.current).then(r=>{ $('reportBody').innerHTML=reportHtml(r); $('rmCase').innerHTML=state.current.caseNo+' <span class="badge emerald" style="padding:1px 7px">✨ AI</span>'; toast('AI report regenerated'); }).catch(()=>{ if(ov.parentNode) ov.remove(); toast('AI backend unavailable — keeping current report','warn'); });
+  } else {
+    setTimeout(()=>{ renderReport(state.current, true); toast('Report regenerated from case data'); }, 1150);
+  }
+}
+
+/* ============================================================
+   CHARTS (ECharts)
+   ============================================================ */
+function initCharts(){
+  if(state.charts.flow) return;
+  state.charts.flow = echarts.init($('flowChart'));
+  state.charts.graph = echarts.init($('graphChart'));
+  window.addEventListener('resize', resizeCharts);
+}
+function resizeCharts(){ Object.values(state.charts).forEach(ch=>ch&&ch.resize()); }
+
+function renderCharts(c){
+  initCharts();
+  const axis = {axisLine:{lineStyle:{color:'rgba(0,0,0,.12)'}}, axisTick:{show:false}, axisLabel:{color:'#a19d90',fontFamily:'Geist Mono',fontSize:10}};
+  state.charts.flow.setOption({
+    grid:{left:56,right:16,top:18,bottom:26},
+    tooltip:{trigger:'axis', backgroundColor:'#fff', borderColor:'rgba(0,0,0,.1)', textStyle:{color:'#333',fontSize:12}, extraCssText:'box-shadow:0 8px 24px rgba(0,0,0,.12);border-radius:10px',
+      formatter:(ps)=>{
+        let h=`<div style="font-family:Geist Mono;font-size:11px;color:#a19d90;margin-bottom:4px">${ps[0].axisValue}</div>`;
+        ps.forEach(p=>{ h+=`<div>${p.marker} ${p.seriesName}: <b>${fmtUsd(Math.abs(p.value))}</b></div>`; });
+        return h;
+      }},
+    xAxis:{type:'category', data:c.timeline.labels, ...axis},
+    yAxis:{type:'value', ...axis, splitLine:{lineStyle:{color:'rgba(0,0,0,.06)'}}, axisLabel:{...axis.axisLabel, formatter:v=>fmtUsd(Math.abs(v))}},
+    series:[
+      {name:'Inflow', type:'bar', stack:'flow', data:c.timeline.inflow, itemStyle:{color:'#6ECE9D',borderRadius:[3,3,0,0]}, barMaxWidth:26},
+      {name:'Outflow', type:'bar', stack:'flow', data:c.timeline.outflow.map(v=>-v), itemStyle:{color:'#F0A8A0',borderRadius:[0,0,3,3]}, barMaxWidth:26}
+    ]
+  }, true);
+
+  const maxUsd = Math.max(...c.graph.edges.map(e=>e.usd||1));
+  state.charts.graph.setOption({
+    tooltip:{backgroundColor:'#fff', borderColor:'rgba(0,0,0,.1)', textStyle:{color:'#333',fontSize:12}, extraCssText:'box-shadow:0 8px 24px rgba(0,0,0,.12);border-radius:10px',
+      formatter:(p)=>{
+        if(p.dataType==='edge'){ const d=p.data; return `<b>${fmtUsd(d.usd)}</b>${d.txs?` · ${fmtN(d.txs)} txs`:''}${d.dash?' · downstream (unattributed)':''}`; }
+        return `<b>${p.data.name.replace(/\n/g,' ')}</b><br><span style="color:#a19d90;font-size:11px">${GRAPH_CATS[p.data.category].name}</span>`;
+      }},
+    series:[{
+      type:'graph', layout:'force', roam:true, draggable:true,
+      force:{repulsion:420, edgeLength:[70,170], gravity:.12},
+      categories:GRAPH_CATS.map(g=>({name:g.name, itemStyle:{color:g.color}})),
+      label:{show:true, color:'#444', fontSize:10, fontFamily:'DM Sans', formatter:p=>p.data.name},
+      itemStyle:{borderColor:'#fff', borderWidth:2},
+      emphasis:{focus:'adjacency', lineStyle:{width:4}},
+      lineStyle:{color:'#d9d2c2', curveness:.12, opacity:.95},
+      edgeSymbol:['none','arrow'], edgeSymbolSize:7,
+      nodes:c.graph.nodes.map(n=>({id:n.id, name:n.name, category:n.cat, symbolSize:n.size,
+        itemStyle: n.cat===0?{color:'#6ECE9D', shadowColor:'rgba(110,206,157,.6)', shadowBlur:16, borderColor:'#fff', borderWidth:2}:undefined})),
+      edges:c.graph.edges.map(e=>({source:e.s, target:e.t, usd:e.usd, txs:e.txs, dash:!!e.dash,
+        lineStyle:{width:1+ (e.usd/maxUsd)*5, type:e.dash?'dashed':'solid', color:e.dash?'#cfc9ba':undefined}}))
+    }]
+  }, true);
+
+  $('graphLegend').innerHTML = GRAPH_CATS.map(g=>`<span><i style="background:${g.color}"></i>${g.name}</span>`).join('');
+  requestAnimationFrame(resizeCharts);
+}
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+function resetChat(c){
+  $('chatMsgs').innerHTML='';
+  const intro = c.intro || `Live case assembled via ${c.source}. This ${CHAIN_META[c.chain].name} address holds ${c.balanceNative} (${c.balanceUsd}), heuristic risk ${c.risk}/100. Ask me about the flows.`;
+  aiMsg(intro, false);
+  const labels = (c.qa && c.qa.length) ? c.qa.slice(0,3).map(chipLabel) : ['Where did the funds go?','How risky is this wallet?','What does it hold?'];
+  $('chipRow').innerHTML = labels.map(q=>`<button class="chip" onclick="sendChip(this.textContent)">${esc(q)}</button>`).join('');
+}
+function chipLabel(e){
+  const map={where:'Where did the funds go?', mixer:'Any mixer exposure?', victim:'How many victims?', donat:'What about the donations?', risk:'How risky is this wallet?', who:'Who owns this address?', exchange:'Any exchange activity?', dump:'Is this wallet dumping?', drainer:'How does the drainer work?', active:'Is it still active?', balance:'What does it hold?', dust:'What about the spam dust?'};
+  for(const k of e.k){ if(map[k]) return map[k]; }
+  return 'Tell me about '+e.k[0];
+}
+function aiMsg(text, stream=true){
+  const wrap=$('chatMsgs');
+  const div=document.createElement('div'); div.className='msg ai';
+  div.innerHTML=`<div class="who">${icon('sparkles')}Investigator</div><div class="tx"></div>`;
+  wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight;
+  const tx=div.querySelector('.tx');
+  if(!stream){ tx.textContent=text; return; }
+  let i=0; const iv=setInterval(()=>{ tx.textContent=text.slice(0,i+=3); wrap.scrollTop=wrap.scrollHeight; if(i>=text.length){clearInterval(iv); tx.textContent=text; state.chatBusy=false;} },14);
+}
+function userMsg(text){
+  const wrap=$('chatMsgs');
+  const div=document.createElement('div'); div.className='msg user'; div.textContent=text;
+  wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight;
+}
+function typing(){
+  const wrap=$('chatMsgs');
+  const div=document.createElement('div'); div.className='msg ai'; div.id='typingMsg';
+  div.innerHTML='<div class="typing"><i></i><i></i><i></i></div>';
+  wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight;
+}
+async function ask(q){
+  if(state.chatBusy || !q.trim()) return;
+  state.chatBusy=true;
+  const hist = chatHistory();
+  userMsg(q);
+  typing();
+  try{
+    let ans;
+    if(AI.on) ans = await api.askInvestigatorAI(state.current, q, hist);
+    else { await new Promise(r=>setTimeout(r,700)); ans = api.askInvestigator(state.current, q); }
+    const tm=$('typingMsg'); if(tm) tm.remove();
+    aiMsg(ans);
+  }catch(e){
+    const tm=$('typingMsg'); if(tm) tm.remove();
+    aiMsg(api.askInvestigator(state.current, q));
+    state.chatBusy=false;
+  }
+}
+function sendChip(q){ ask(q); }
+$('chatForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  const v=$('chatInput').value; $('chatInput').value='';
+  ask(v);
+});
+
+/* ============================================================
+   SEARCH
+   ============================================================ */
+const RX = {
+  eth:/^0x[a-fA-F0-9]{40}$/,
+  btc:/^(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{25,60}$/,
+  sol:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/
+};
+function detectChain(a){
+  if(RX.eth.test(a)) return 'eth';
+  if(RX.btc.test(a)) return 'btc';
+  if(RX.sol.test(a)) return 'sol';
+  return null;
+}
+$('searchForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const v=$('searchInput').value.trim();
+  if(!v) return;
+  let chain = (state.chainFilter && state.chainFilter!=='all') ? state.chainFilter : detectChain(v);
+  if(!chain){ toast('That doesn\'t look like a valid ETH, SOL, or BTC address.', 'err'); return; }
+  const input=$('searchInput'); input.disabled=true; input.style.opacity=.6;
+  toast('Querying '+chain.toUpperCase()+' on-chain data…');
+  try{
+    const profile = await api.fetchWalletData(chain, v);
+    loadCase(profile.id);
+    toast((profile.live?'Live lookup complete: ':'Case file loaded: ')+profile.label);
+  }catch(err){
+    if(err.code==='NOT_FOUND') toast('No on-chain activity found for that address.', 'warn');
+    else if(err.code==='BLOCKED'||err.code==='TIMEOUT') toast('Couldn\'t reach the data provider just now — please try again.', 'warn');
+    else toast('Lookup failed: '+(err.message||'unknown error'), 'err');
+  }finally{
+    input.disabled=false; input.style.opacity=1; input.value='';
+  }
+});
+document.addEventListener('keydown', e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){
+    e.preventDefault();
+    if($('view-console').style.display!=='block') enterConsole();
+    setTimeout(()=>$('searchInput').focus(),50);
+  }
+});
+
+/* ============================================================
+   MISC
+   ============================================================ */
+function copyAddr(){
+  const a=state.current.address;
+  try{ navigator.clipboard.writeText(a).then(()=>toast('Address copied')); }
+  catch(e){ toast('Copy blocked in this frame — address: '+shortAddr(a), 'warn'); }
+}
+function wiringInfo(){
+  toast('Live wiring on: paste any ETH/SOL/BTC address to query Blockscout · Solana RPC · Blockstream in real time. Featured cases are curated + live-verified. Production swaps in Etherscan V2 + Helius via a backend — keys never touch the browser.');
+}
+
+/* ============================================================
+   LANDING — interactions (ported from next-saas-lp motion)
+   ============================================================ */
+const LP_T = [
+  {q:"Blockchain is transparent, yet it's incredibly difficult to understand. You can see every transaction, but answering simple questions still takes hours of manual investigation.",
+   n:"RESTORER EZEKIEL D'KING", r:'The idea · <a href="https://x.com/Ezekieldking94" target="_blank" rel="noopener noreferrer">@Ezekieldking94</a>', ch:'E', bg:'#6ECE9D'},
+  {q:"I dreamed of a platform that gathers blockchain data, analyzes wallet behavior, maps relationships between addresses, detects suspicious patterns, and uses AI to generate a clear investigation report.",
+   n:"RESTORER EZEKIEL D'KING", r:'The dream, continued · <a href="https://x.com/Ezekieldking94" target="_blank" rel="noopener noreferrer">@Ezekieldking94</a>', ch:'E', bg:'#FFDA6E'},
+  {q:"What's the app you've always dreamed of? Tell me your best idea! I'll choose one to bring to life in just 24 hours.",
+   n:"SKAMBER", r:'The 24h challenge · <a href="https://x.com/0xSkamber" target="_blank" rel="noopener noreferrer">@0xSkamber</a>', ch:'S', bg:'#B7E4CE'}
+];
+let lpTi = 0, lpTimer = null, lpCharsDone = false, lpInited = false;
+
+function lpShowChars(){
+  if(lpCharsDone) return; lpCharsDone = true;
+  const h = document.getElementById('lpH1'); if(!h) return;
+  const text = h.textContent; h.textContent = '';
+  const frag = document.createDocumentFragment();
+  [...text].forEach((c,i)=>{
+    const s = document.createElement('span');
+    s.className = 'lp-ch lp-grad'; s.textContent = c;
+    s.style.transitionDelay = (i*0.035)+'s';
+    frag.appendChild(s);
+  });
+  h.appendChild(frag);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    h.querySelectorAll('.lp-ch').forEach(s=>s.classList.add('on'));
+  }));
+}
+
+function lpRenderT(){
+  const t = LP_T[lpTi];
+  const f = document.getElementById('lpTileF');
+  const b1 = document.getElementById('lpTileB1');
+  const b2 = document.getElementById('lpTileB2');
+  if(!f) return;
+  f.style.background = t.bg; f.textContent = t.ch;
+  b1.style.background = LP_T[(lpTi+1)%LP_T.length].bg;
+  b2.style.background = LP_T[(lpTi+2)%LP_T.length].bg;
+  document.getElementById('lpQn').textContent = t.n;
+  document.getElementById('lpQr').innerHTML = t.r;
+  const qt = document.getElementById('lpQt'); qt.innerHTML = '';
+  t.q.split(' ').forEach((w,i)=>{
+    const s = document.createElement('span');
+    s.className = 'w'; s.textContent = w + ' ';
+    s.style.transitionDelay = (i*0.018)+'s';
+    qt.appendChild(s);
+  });
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    qt.querySelectorAll('.w').forEach(s=>s.classList.add('on'));
+  }));
+}
+function lpTGo(dir){
+  lpTi = (lpTi + dir + LP_T.length) % LP_T.length;
+  lpRenderT();
+  clearInterval(lpTimer);
+  lpTimer = setInterval(()=>lpTGo(1), 8000);
+}
+
+function lpAcc(btn){
+  const item = btn.parentElement;
+  const open = item.classList.contains('open');
+  item.parentElement.querySelectorAll('.lp-qa').forEach(q=>{
+    q.classList.remove('open');
+    q.querySelector('.pane').style.maxHeight = '0px';
+  });
+  if(!open){
+    item.classList.add('open');
+    const p = item.querySelector('.pane');
+    p.style.maxHeight = p.scrollHeight + 'px';
+  }
+}
+
+function lpMenu(){
+  const p = document.getElementById('lpMenuPanel');
+  const open = p.classList.toggle('open');
+  document.getElementById('lpBurgIc').innerHTML = icon(open ? 'close' : 'menu');
+}
+
+function lpSoon(btn){
+  if(btn.dataset.busy) return; btn.dataset.busy = '1';
+  const orig = btn.textContent;
+  btn.textContent = "you're early — opens with the backend ✓";
+  setTimeout(()=>{ btn.textContent = orig; delete btn.dataset.busy; }, 2600);
+}
+
+function lpInit(){
+  if(lpInited) return; lpInited = true;
+  // duplicate marquee content for a seamless -50% loop
+  const m = document.getElementById('lpMarq');
+  if(m) m.innerHTML += m.innerHTML;
+  // slide-in observer (viewport amount .2, once — like the template)
+  const obs = new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){ e.target.classList.add('in'); obs.unobserve(e.target); }
+  }), {threshold:.15, rootMargin:'0px 0px -4% 0px'});
+  document.querySelectorAll('#view-landing .sl').forEach(el=>obs.observe(el));
+  lpRenderT();
+  lpTimer = setInterval(()=>lpTGo(1), 8000);
+}
+
+/* ===== AI backend wiring — real reports + chat when a backend is connected ===== */
+let AI = { on:false, provider:'', model:'', base:'' };
+const DEFAULT_BACKEND = /hyperagent\.com/.test(location.host) ? 'https://chainsight-kambah123-skambers-projects.vercel.app' : '';
+function aiBase(){ try{ return localStorage.getItem('chainsight_backend')||DEFAULT_BACKEND; }catch(e){ return DEFAULT_BACKEND; } }
+async function detectBackend(){
+  const base = aiBase();
+  try{
+    const h = await fetchJSON((base||'')+'/api/health', {}, 6000);
+    AI = { on: !!(h&&h.ok&&h.aiReady), reachable: !!(h&&h.ok), provider:(h&&h.provider)||'', model:(h&&h.model)||'', base };
+  }catch(e){ AI = { on:false, reachable:false, provider:'', model:'', base }; }
+  updateAIBadge();
+}
+function updateAIBadge(){
+  const t=$('aiBtnTxt'), btn=$('aiBtn'); if(!t||!btn) return;
+  if(AI.on){ t.textContent='AI · '+((AI.model.split('/').pop()||AI.provider).slice(0,16)); btn.classList.add('ai-live'); }
+  else { t.textContent='Connect AI'; btn.classList.remove('ai-live'); }
+}
+function openAI(){
+  if(AI.on){ toast('AI is live · '+AI.provider+' · '+(AI.model||'')+'. Reports and chat are AI-generated; on-chain data is fetched server-side.'); return; }
+  $('aiModalUrl').value=aiBase(); $('aiModalMsg').textContent=''; $('aiOverlay').classList.add('open'); setTimeout(()=>$('aiModalUrl').focus(),60);
+}
+function closeAI(){ $('aiOverlay').classList.remove('open'); }
+async function saveAI(){
+  const url=$('aiModalUrl').value.trim().replace(/\/+$/,'');
+  try{ localStorage.setItem('chainsight_backend', url); }catch(e){}
+  $('aiModalMsg').style.color='#707070'; $('aiModalMsg').textContent='Checking…';
+  await detectBackend();
+  if(AI.on){ $('aiModalMsg').style.color='#3e9d6f'; $('aiModalMsg').textContent='✓ Connected · '+AI.provider+' · '+AI.model; toast('AI backend connected: '+AI.model); setTimeout(closeAI,1000); if(state.current){ renderReport(state.current,false); maybeEnhanceReport(state.current); resetChat(state.current); } }
+  else { $('aiModalMsg').style.color='#c04747'; $('aiModalMsg').textContent='No Chainsight AI backend reachable there. Check the URL and that the key is set.'; }
+}
+function slimProfile(p){ const o={}; for(const k in p){ if(k==='qa'||k==='intro'||k==='report'||k==='graph') continue; o[k]=p[k]; } return o; }
+function chatHistory(){ return [...document.querySelectorAll('#chatMsgs .msg')].map(m=>({role:m.classList.contains('user')?'user':'assistant', text:(m.querySelector('.tx')||m).textContent.trim()})).filter(m=>m.text); }
+api.generateReportAI = async (profile)=>{
+  const r = await fetchJSON((AI.base||'')+'/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:slimProfile(profile)})}, 65000);
+  return { summary:r.summary||'', findings:r.findings||[], notable:r.notableTransactions||r.notable||[], assessment:r.riskAssessment||r.assessment||'', actions:r.recommendedActions||r.actions||[] };
+};
+api.askInvestigatorAI = async (profile, q, history)=>{
+  const r = await fetchJSON((AI.base||'')+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:slimProfile(profile), question:q, history:history||chatHistory()})}, 65000);
+  return r.answer||'';
+};
+async function maybeEnhanceReport(c){
+  if(!AI.on) return;
+  const body=$('reportBody');
+  const ov=document.createElement('div'); ov.className='shimmer-overlay';
+  ov.innerHTML=`<div class="in"><span class="spinner"></span>Chainsight AI is writing the report… <span style="opacity:.6">(free model, ~30s)</span></div>`;
+  body.appendChild(ov);
+  try{
+    const r=await api.generateReportAI(c);
+    if(state.current!==c){ if(ov.parentNode) ov.remove(); return; }
+    $('reportBody').innerHTML=reportHtml(r);
+    $('rmCase').innerHTML = c.caseNo+' <span class="badge emerald" style="padding:1px 7px">✨ AI</span>';
+  }catch(e){ if(ov.parentNode) ov.remove(); }
+}
+
+/* init */
+renderSidebar();
+lpInit();
+detectBackend();
+if(location.hash==='#console') enterConsole(); else lpShowChars();
+</script>
+</body>
+</html>
